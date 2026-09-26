@@ -1,0 +1,43 @@
+{
+  "name": "demo-count-in-practice",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Angular vertical slice: upload audio, trim it, and practice against a synthesized metronome count-in/count-out loop via the Web Audio API.",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng build count-in-practice && ng serve demo-count-in-practice",
+    "test": "ng test count-in-practice --watch=false",
+    "build": "ng build count-in-practice && ng build demo-count-in-practice",
+    "build:lib": "ng build count-in-practice",
+    "build:gh-pages": "ng build count-in-practice && ng build demo-count-in-practice --base-href /count-in-practice/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elparaquecosadeque/count-in-practice"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/compiler": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/forms": "^22.0.0",
+    "@angular/platform-browser": "^22.0.0",
+    "@angular/router": "^22.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "wavesurfer.js": "^8.0.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.0.4",
+    "@angular/compiler-cli": "^22.0.0",
+    "jsdom": "^30.0.0",
+    "ng-packagr": "^22.2.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  }
+}

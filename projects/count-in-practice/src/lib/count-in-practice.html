@@ -1,0 +1,121 @@
+<div class="shell">
+  <header class="header">
+    <p class="eyebrow">{{ text().subtitle }}</p>
+    <h1>{{ text().title }}</h1>
+  </header>
+
+  <section class="config-panel">
+    <div class="upload-row">
+      <label class="upload-btn" [class.disabled]="engine.transport() !== 'idle'">
+        <input type="file" accept="audio/*" (change)="onFileSelected($event)" [disabled]="engine.transport() !== 'idle'" />
+        {{ hasAudio() ? text().changeFile : text().uploadLabel }}
+      </label>
+      <span class="upload-hint">{{ text().uploadHint }}</span>
+    </div>
+
+    @if (errorMessage(); as message) {
+      <p class="error-text">{{ message }}</p>
+    }
+
+    <div class="field-row">
+      <label class="field">
+        {{ text().bpmLabel }}
+        <input
+          type="number"
+          class="bpm-field"
+          [ngModel]="bpmInputValue()"
+          (ngModelChange)="onBpmInput($event)"
+          (blur)="onBpmBlur()"
+          [disabled]="engine.transport() !== 'idle'"
+          min="40"
+          max="240"
+        />
+      </label>
+
+      <label class="field">
+        {{ text().timeSignatureLabel }}
+        <select [ngModel]="beatsPerMeasure()" (ngModelChange)="onTimeSignatureChange($event)" [disabled]="engine.transport() !== 'idle'">
+          @for (ts of timeSignatures; track ts.label) {
+            <option [value]="ts.beats">{{ ts.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="field">
+        {{ text().preCountLabel }}
+        <input
+          type="number"
+          [ngModel]="preCountBars()"
+          (ngModelChange)="onPreCountChange($event)"
+          [disabled]="engine.transport() !== 'idle'"
+          min="0"
+          max="8"
+        />
+      </label>
+
+      <label class="field">
+        {{ text().countOutLabel }}
+        <input
+          type="number"
+          [ngModel]="countOutBars()"
+          (ngModelChange)="onCountOutChange($event)"
+          [disabled]="engine.transport() !== 'idle'"
+          min="0"
+          max="8"
+        />
+      </label>
+    </div>
+
+    @if (audioFile()) {
+      <div class="trim-panel">
+        <p class="trim-label">{{ text().trimLabel }}</p>
+        <the-chords-waveform-trimmer
+          [file]="audioFile()"
+          (loaded)="onWaveformLoaded($event)"
+          (trimChange)="onTrimChange($event)"
+          (loadError)="onWaveformError()"
+        />
+        <p class="trim-readout">
+          {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s
+        </p>
+      </div>
+    } @else {
+      <p class="no-audio-hint">{{ text().noAudioHint }}</p>
+    }
+  </section>
+
+  <section class="beat-panel">
+    <div class="beat-dots">
+      @for (i of beatDots(); track i) {
+        <span
+          class="beat-dot"
+          [class.accent]="i === 0"
+          [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
+        ></span>
+      }
+    </div>
+    <p class="phase-readout">
+      <span class="phase-name">{{ phaseLabel() }}</span>
+      <span class="bar-beat">
+        {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
+        &middot;
+        {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
+      </span>
+    </p>
+  </section>
+
+  <section class="transport-panel">
+    <button
+      type="button"
+      class="transport-btn play"
+      [class.is-playing]="engine.transport() === 'playing'"
+      [disabled]="!hasAudio()"
+      (click)="togglePlayPause()"
+    >
+      {{ engine.transport() === 'playing' ? text().pause : text().play }}
+    </button>
+    <button type="button" class="transport-btn stop" [disabled]="engine.transport() === 'idle'" (click)="stop()">
+      {{ text().stop }}
+    </button>
+  </section>
+</div>

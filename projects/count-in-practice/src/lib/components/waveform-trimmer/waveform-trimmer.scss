@@ -1,0 +1,20 @@
+:host {
+  --_chords-surface-elevated: var(--chords-surface-elevated, rgba(0, 0, 0, 0.8));
+  --_chords-border: var(--chords-border, rgba(0, 255, 240, 0.76));
+  --_chords-muted: var(--chords-muted, #dedbff);
+  --_chords-primary: var(--chords-primary, #00fff0);
+  --_chords-highlight: var(--chords-highlight, #ffee00);
+
+  display: block;
+}
+
+.waveform-shell {
+  padding: 10px;
+  background: var(--_chords-surface-elevated);
+  border: 1px solid var(--_chords-border);
+  border-radius: 16px;
+}
+
+.waveform-container {
+  width: 100%;
+}
