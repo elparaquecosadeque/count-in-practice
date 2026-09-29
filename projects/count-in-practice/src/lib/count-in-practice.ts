@@ -1,17 +1,31 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { detectBpm as detectBpmFromBuffer } from './bpm-detector';
 import { WaveformLoaded, WaveformTrimmer } from './components/waveform-trimmer/waveform-trimmer';
 import { CountInSettings, Language, TrimRange } from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
 import { SettingsStorageService } from './services/settings-storage.service';
+import { createTapTempoState, registerTap } from './tap-tempo';
 
 export interface CountInPracticeCopy {
   title: string;
   subtitle: string;
   uploadLabel: string;
   uploadHint: string;
+  dropHint: string;
+  dropActiveHint: string;
   changeFile: string;
   bpmLabel: string;
+  detectBpmLabel: string;
+  detectingBpm: string;
+  detectBpmError: string;
+  tapTempoLabel: string;
   timeSignatureLabel: string;
   preCountLabel: string;
   countOutLabel: string;
@@ -38,8 +52,14 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     subtitle: 'Upload a clip, trim it, and loop it behind a metronome count-in and count-out.',
     uploadLabel: 'Upload audio',
     uploadHint: 'MP3, WAV or M4A',
+    dropHint: 'or drag and drop a file here',
+    dropActiveHint: 'Drop to upload',
     changeFile: 'Change file',
     bpmLabel: 'BPM',
+    detectBpmLabel: 'Detect BPM',
+    detectingBpm: 'Detecting…',
+    detectBpmError: "Couldn't detect a tempo — try tap tempo instead.",
+    tapTempoLabel: 'Tap',
     timeSignatureLabel: 'Time signature',
     preCountLabel: 'Pre-count bars',
     countOutLabel: 'Count-out bars',
@@ -64,8 +84,14 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     subtitle: 'Sube un fragmento, recórtalo, y ponlo en loop con un count-in y count-out de metrónomo.',
     uploadLabel: 'Subir audio',
     uploadHint: 'MP3, WAV o M4A',
+    dropHint: 'o arrastra y suelta un archivo aquí',
+    dropActiveHint: 'Suelta para subir',
     changeFile: 'Cambiar archivo',
     bpmLabel: 'BPM',
+    detectBpmLabel: 'Detectar BPM',
+    detectingBpm: 'Detectando…',
+    detectBpmError: 'No se pudo detectar un tempo — prueba con tap tempo.',
+    tapTempoLabel: 'Tap',
     timeSignatureLabel: 'Compás',
     preCountLabel: 'Bares de pre-count',
     countOutLabel: 'Bares de count-out',
@@ -103,7 +129,16 @@ const BARS_MAX = 8;
 
 @Component({
   selector: 'the-chords-count-in-practice',
-  imports: [FormsModule, WaveformTrimmer],
+  imports: [
+    FormsModule,
+    WaveformTrimmer,
+    MatButtonModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatSelectModule,
+  ],
   templateUrl: './count-in-practice.html',
   styleUrl: './count-in-practice.scss',
   host: { '[attr.lang]': 'language()' },
@@ -125,9 +160,15 @@ export class CountInPractice {
   readonly countOutBars = signal(this.stored.countOutBars);
 
   readonly audioFile = signal<File | null>(null);
+  readonly audioBuffer = signal<AudioBuffer | null>(null);
   readonly hasAudio = signal(false);
   readonly trimRange = signal<TrimRange>({ start: 0, end: 0 });
   readonly errorMessage = signal<string | null>(null);
+
+  readonly detectingBpm = signal(false);
+  readonly isDraggingFile = signal(false);
+  private tapState = createTapTempoState();
+  private dragCounter = 0;
 
   readonly beatDots = computed(() => Array.from({ length: this.beatsPerMeasure() }, (_, i) => i));
   readonly phaseLabel = computed(() => {
@@ -152,20 +193,52 @@ export class CountInPractice {
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
-    if (!file) return;
+    if (file) this.handleFile(file);
+    input.value = ''; // allow re-selecting the same file to re-trigger change
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  onDragEnter(event: DragEvent): void {
+    event.preventDefault();
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    this.dragCounter++;
+    this.isDraggingFile.set(true);
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.dragCounter = Math.max(0, this.dragCounter - 1);
+    if (this.dragCounter === 0) this.isDraggingFile.set(false);
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragCounter = 0;
+    this.isDraggingFile.set(false);
+    const file = event.dataTransfer?.files?.[0] ?? null;
+    if (file) this.handleFile(file);
+  }
+
+  private handleFile(file: File): void {
     this.engine.stop();
     this.hasAudio.set(false);
+    this.audioBuffer.set(null);
     this.errorMessage.set(null);
     this.audioFile.set(file);
   }
 
   onWaveformLoaded(loaded: WaveformLoaded): void {
     this.engine.setBuffer(loaded.buffer);
+    this.audioBuffer.set(loaded.buffer);
     this.hasAudio.set(true);
   }
 
   onWaveformError(): void {
     this.hasAudio.set(false);
+    this.audioBuffer.set(null);
     this.engine.setBuffer(null);
     this.errorMessage.set(this.text().decodeError);
   }
@@ -185,7 +258,33 @@ export class CountInPractice {
 
   onBpmBlur(): void {
     const parsed = Number(this.bpmInputValue());
-    const clamped = Number.isNaN(parsed) ? this.bpm() : Math.min(BPM_MAX, Math.max(BPM_MIN, parsed));
+    this.applyBpm(Number.isNaN(parsed) ? this.bpm() : parsed);
+  }
+
+  async detectBpm(): Promise<void> {
+    const buffer = this.audioBuffer();
+    if (!buffer || this.detectingBpm()) return;
+    this.detectingBpm.set(true);
+    this.errorMessage.set(null);
+    try {
+      const { start, end } = this.trimRange();
+      const bpm = await detectBpmFromBuffer(buffer, start, end - start);
+      this.applyBpm(bpm);
+    } catch {
+      this.errorMessage.set(this.text().detectBpmError);
+    } finally {
+      this.detectingBpm.set(false);
+    }
+  }
+
+  onTap(): void {
+    const { state, bpm } = registerTap(this.tapState, performance.now());
+    this.tapState = state;
+    if (bpm !== null) this.applyBpm(bpm);
+  }
+
+  private applyBpm(value: number): void {
+    const clamped = Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(value)));
     this.bpm.set(clamped);
     this.bpmInputValue.set(String(clamped));
   }

@@ -1,6 +1,8 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, effect, input, output, viewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewEncapsulation, effect, input, output, viewChild } from '@angular/core';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin, { Region } from 'wavesurfer.js/plugins/regions';
+import TimelinePlugin from 'wavesurfer.js/plugins/timeline';
+import ZoomPlugin from 'wavesurfer.js/plugins/zoom';
 import { TrimRange } from '../../models';
 
 export interface WaveformLoaded {
@@ -16,6 +18,10 @@ export interface WaveformLoaded {
   imports: [],
   templateUrl: './waveform-trimmer.html',
   styleUrl: './waveform-trimmer.scss',
+  // `::part()` targets elements wavesurfer.js renders inside its own shadow
+  // root — they never get Angular's `_ngcontent` scoping attribute, so
+  // emulated encapsulation's rewritten selectors can never match them.
+  encapsulation: ViewEncapsulation.None,
 })
 export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly file = input<File | null>(null);
@@ -30,6 +36,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   private regions: ReturnType<typeof RegionsPlugin.create> | null = null;
   private activeRegion: Region | null = null;
   private viewReady = false;
+  private removeCtrlWheelGuard: (() => void) | null = null;
 
   constructor() {
     // Signal inputs don't fire ngOnChanges — react via effect(), guarded until
@@ -47,22 +54,48 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.wavesurfer?.destroy();
+    this.removeCtrlWheelGuard?.();
   }
 
-  private loadCurrentFile(): void {
+  private async loadCurrentFile(): Promise<void> {
     const file = this.file();
     this.wavesurfer?.destroy();
     this.wavesurfer = null;
     this.regions = null;
     this.activeRegion = null;
+    this.removeCtrlWheelGuard?.();
+    this.removeCtrlWheelGuard = null;
     if (!file) return;
 
     const host = this.container().nativeElement;
     const style = getComputedStyle(host);
-    const waveColor = style.getPropertyValue('--_chords-muted').trim() || '#888';
-    const progressColor = style.getPropertyValue('--_chords-primary').trim() || '#3b82f6';
-    const cursorColor = style.getPropertyValue('--_chords-highlight').trim() || '#f59e0b';
+    const waveColor = style.getPropertyValue('--mat-sys-outline').trim() || '#888';
+    const progressColor = style.getPropertyValue('--mat-sys-primary').trim() || '#3b82f6';
+    const cursorColor = style.getPropertyValue('--mat-sys-tertiary').trim() || '#f59e0b';
+    const timelineColor = style.getPropertyValue('--mat-sys-on-surface').trim() || '#f8f8ff';
     const regionColor = `color-mix(in srgb, ${progressColor} 25%, transparent)`;
+
+    // Decode ourselves rather than letting wavesurfer fetch+decode the blob
+    // internally: we need the AudioBuffer for the playback engine anyway, and
+    // handing wavesurfer the already-decoded channel data + duration lets it
+    // render immediately instead of waiting on its own fetch/decode pipeline.
+    let buffer: AudioBuffer;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const decodeCtx = new AudioContext();
+      try {
+        buffer = await decodeCtx.decodeAudioData(arrayBuffer);
+      } finally {
+        decodeCtx.close();
+      }
+    } catch {
+      this.loadError.emit();
+      return;
+    }
+    if (this.file() !== file) return; // superseded by a newer file while decoding
+
+    const channelData: Float32Array[] = [];
+    for (let c = 0; c < buffer.numberOfChannels; c++) channelData.push(buffer.getChannelData(c));
 
     const regions = RegionsPlugin.create();
     this.regions = regions;
@@ -75,19 +108,30 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       cursorColor,
       barWidth: 2,
       barGap: 1,
-      plugins: [regions],
+      plugins: [
+        regions,
+        TimelinePlugin.create({ height: 16, style: { color: timelineColor, opacity: '0.6' } }),
+        ZoomPlugin.create({ scale: 0.5 }),
+      ],
     });
     this.wavesurfer = wavesurfer;
 
-    wavesurfer.loadBlob(file);
+    // The Zoom plugin zooms on ANY vertical wheel scroll, Ctrl held or not —
+    // it never needs Ctrl. Ctrl+wheel is a shortcut the OS/browser already
+    // owns (page zoom, a magnifier, whatever) outside of our control; trying
+    // to preventDefault it just fights that other zoom instead of avoiding
+    // it. Simplest fix: never let Ctrl+wheel reach the plugin at all — plain
+    // scroll still zooms the waveform, Ctrl+scroll passes through untouched,
+    // identical to scrolling over blank page.
+    const ctrlWheelBypass = (event: WheelEvent) => {
+      if (event.ctrlKey) event.stopPropagation();
+    };
+    host.addEventListener('wheel', ctrlWheelBypass, { capture: true });
+    this.removeCtrlWheelGuard = () => host.removeEventListener('wheel', ctrlWheelBypass, { capture: true });
 
     wavesurfer.on('error', () => this.loadError.emit());
 
-    wavesurfer.on('ready', () => {
-      const duration = wavesurfer.getDuration();
-      const buffer = wavesurfer.getDecodedData();
-      if (!buffer) return;
-
+    wavesurfer.on('ready', (duration) => {
       const region = regions.addRegion({
         start: 0,
         end: duration,
@@ -101,6 +145,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       this.loaded.emit({ buffer, duration });
       this.trimChange.emit({ start: region.start, end: region.end });
     });
+
+    wavesurfer.loadBlob(file, channelData, buffer.duration);
   }
 
   private emitTrim(): void {

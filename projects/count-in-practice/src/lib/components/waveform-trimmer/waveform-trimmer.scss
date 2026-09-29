@@ -1,20 +1,47 @@
 :host {
-  --_chords-surface-elevated: var(--chords-surface-elevated, rgba(0, 0, 0, 0.8));
-  --_chords-border: var(--chords-border, rgba(0, 255, 240, 0.76));
-  --_chords-muted: var(--chords-muted, #dedbff);
-  --_chords-primary: var(--chords-primary, #00fff0);
-  --_chords-highlight: var(--chords-highlight, #ffee00);
-
   display: block;
+  // The actual containment boundary needs to be here, not just on the inner
+  // `.waveform-container` — confirmed by testing: zooming in still pushed the
+  // whole page wider even with that inner overflow-x:hidden in place. This
+  // component (ViewEncapsulation.None) is a real custom element with its own
+  // box; wavesurfer's growing wrapper apparently escapes the inner div's
+  // clipping and needs to be stopped at the host boundary itself.
+  overflow-x: hidden;
 }
 
 .waveform-shell {
   padding: 10px;
-  background: var(--_chords-surface-elevated);
-  border: 1px solid var(--_chords-border);
+  background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.8));
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 255, 240, 0.4));
   border-radius: 16px;
 }
 
 .waveform-container {
   width: 100%;
+  // Horizontal breathing room so the region's resize handles (which sit flush
+  // against the region's own start/end, i.e. the very edges when untrimmed)
+  // aren't glued to the outer edge of the clickable area — a real mouse
+  // consistently missed them at 0 margin.
+  padding: 0 10px;
+  // border-box, not content-box: content-box made this element 20px wider
+  // than its 100%-width parent (padding added on top instead of contained
+  // inside), which could nudge the page into a horizontal scrollbar — and a
+  // horizontal scrollbar shrinks the viewport's height, which can in turn
+  // trigger a vertical one, cascading into the reported zoom/browser
+  // "flickering" as the two scrollbars fight each other in and out.
+  box-sizing: border-box;
+  // Defensive: nothing wavesurfer renders inside (the wrapper grows freely as
+  // you zoom in) should ever be able to push this container — or the page —
+  // wider than its own 100%. wavesurfer's own internal `.scroll` part already
+  // scrolls the overflow; this is a second, outer backstop.
+  overflow-x: hidden;
+
+  // wavesurfer.js's region handles are 6px wide inline styles (::part is one of
+  // the few ways to reach into a plugin's shadow-DOM elements); !important is
+  // required to beat the inline width/style the library sets via JS.
+  ::part(region-handle-left),
+  ::part(region-handle-right) {
+    width: 14px !important;
+    background: color-mix(in srgb, var(--mat-sys-primary, #00fff0) 35%, transparent);
+  }
 }

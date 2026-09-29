@@ -4,118 +4,157 @@
     <h1>{{ text().title }}</h1>
   </header>
 
-  <section class="config-panel">
-    <div class="upload-row">
-      <label class="upload-btn" [class.disabled]="engine.transport() !== 'idle'">
-        <input type="file" accept="audio/*" (change)="onFileSelected($event)" [disabled]="engine.transport() !== 'idle'" />
-        {{ hasAudio() ? text().changeFile : text().uploadLabel }}
-      </label>
-      <span class="upload-hint">{{ text().uploadHint }}</span>
-    </div>
-
-    @if (errorMessage(); as message) {
-      <p class="error-text">{{ message }}</p>
-    }
-
-    <div class="field-row">
-      <label class="field">
-        {{ text().bpmLabel }}
-        <input
-          type="number"
-          class="bpm-field"
-          [ngModel]="bpmInputValue()"
-          (ngModelChange)="onBpmInput($event)"
-          (blur)="onBpmBlur()"
+  <mat-card appearance="outlined">
+    <mat-card-content>
+      <div
+        class="dropzone"
+        [class.dragging]="isDraggingFile()"
+        (dragover)="onDragOver($event)"
+        (dragenter)="onDragEnter($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <mat-icon>upload_file</mat-icon>
+        <button
+          type="button"
+          mat-flat-button
           [disabled]="engine.transport() !== 'idle'"
-          min="40"
-          max="240"
-        />
-      </label>
+          (click)="fileInput.click()"
+        >
+          {{ hasAudio() ? text().changeFile : text().uploadLabel }}
+        </button>
+        <input #fileInput type="file" accept="audio/*" hidden (change)="onFileSelected($event)" />
+        <p class="dropzone-hint">
+          {{ isDraggingFile() ? text().dropActiveHint : text().uploadHint + ' — ' + text().dropHint }}
+        </p>
+      </div>
 
-      <label class="field">
-        {{ text().timeSignatureLabel }}
-        <select [ngModel]="beatsPerMeasure()" (ngModelChange)="onTimeSignatureChange($event)" [disabled]="engine.transport() !== 'idle'">
-          @for (ts of timeSignatures; track ts.label) {
-            <option [value]="ts.beats">{{ ts.label }}</option>
-          }
-        </select>
-      </label>
+      @if (errorMessage(); as message) {
+        <p class="error-text">{{ message }}</p>
+      }
 
-      <label class="field">
-        {{ text().preCountLabel }}
-        <input
-          type="number"
-          [ngModel]="preCountBars()"
-          (ngModelChange)="onPreCountChange($event)"
-          [disabled]="engine.transport() !== 'idle'"
-          min="0"
-          max="8"
-        />
-      </label>
+      <div class="field-row">
+        <mat-form-field appearance="outline" class="bpm-field-group">
+          <mat-label>{{ text().bpmLabel }}</mat-label>
+          <input
+            matInput
+            type="number"
+            [ngModel]="bpmInputValue()"
+            (ngModelChange)="onBpmInput($event)"
+            (blur)="onBpmBlur()"
+            [disabled]="engine.transport() !== 'idle'"
+            min="40"
+            max="240"
+          />
+        </mat-form-field>
 
-      <label class="field">
-        {{ text().countOutLabel }}
-        <input
-          type="number"
-          [ngModel]="countOutBars()"
-          (ngModelChange)="onCountOutChange($event)"
-          [disabled]="engine.transport() !== 'idle'"
-          min="0"
-          max="8"
-        />
-      </label>
-    </div>
+        <div class="bpm-tools">
+          <button
+            type="button"
+            mat-stroked-button
+            [disabled]="!hasAudio() || detectingBpm() || engine.transport() !== 'idle'"
+            (click)="detectBpm()"
+          >
+            <mat-icon>graphic_eq</mat-icon>
+            {{ detectingBpm() ? text().detectingBpm : text().detectBpmLabel }}
+          </button>
+          <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="onTap()">
+            <mat-icon>touch_app</mat-icon>
+            {{ text().tapTempoLabel }}
+          </button>
+        </div>
 
-    @if (audioFile()) {
-      <div class="trim-panel">
+        <mat-form-field appearance="outline">
+          <mat-label>{{ text().timeSignatureLabel }}</mat-label>
+          <mat-select
+            [ngModel]="beatsPerMeasure()"
+            (ngModelChange)="onTimeSignatureChange($event)"
+            [disabled]="engine.transport() !== 'idle'"
+          >
+            @for (ts of timeSignatures; track ts.label) {
+              <mat-option [value]="ts.beats">{{ ts.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ text().preCountLabel }}</mat-label>
+          <input
+            matInput
+            type="number"
+            [ngModel]="preCountBars()"
+            (ngModelChange)="onPreCountChange($event)"
+            [disabled]="engine.transport() !== 'idle'"
+            min="0"
+            max="8"
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ text().countOutLabel }}</mat-label>
+          <input
+            matInput
+            type="number"
+            [ngModel]="countOutBars()"
+            (ngModelChange)="onCountOutChange($event)"
+            [disabled]="engine.transport() !== 'idle'"
+            min="0"
+            max="8"
+          />
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  @if (audioFile()) {
+    <mat-card class="trim-card" appearance="outlined">
+      <mat-card-content>
         <p class="trim-label">{{ text().trimLabel }}</p>
         <the-chords-waveform-trimmer
           [file]="audioFile()"
           (loaded)="onWaveformLoaded($event)"
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"
-        />
+          style="overflow-x: scroll;"        />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s
         </p>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <p class="no-audio-hint">{{ text().noAudioHint }}</p>
+  }
+
+  <mat-card class="beat-card" appearance="outlined">
+    <mat-card-content>
+      <div class="beat-dots">
+        @for (i of beatDots(); track i) {
+          <span
+            class="beat-dot"
+            [class.accent]="i === 0"
+            [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
+          ></span>
+        }
       </div>
-    } @else {
-      <p class="no-audio-hint">{{ text().noAudioHint }}</p>
-    }
-  </section>
+      <p class="phase-readout">
+        <span class="phase-name">{{ phaseLabel() }}</span>
+        <span class="bar-beat">
+          {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
+          &middot;
+          {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
+        </span>
+      </p>
+    </mat-card-content>
+  </mat-card>
 
-  <section class="beat-panel">
-    <div class="beat-dots">
-      @for (i of beatDots(); track i) {
-        <span
-          class="beat-dot"
-          [class.accent]="i === 0"
-          [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
-        ></span>
-      }
-    </div>
-    <p class="phase-readout">
-      <span class="phase-name">{{ phaseLabel() }}</span>
-      <span class="bar-beat">
-        {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
-        &middot;
-        {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
-      </span>
-    </p>
-  </section>
-
-  <section class="transport-panel">
-    <button
-      type="button"
-      class="transport-btn play"
-      [class.is-playing]="engine.transport() === 'playing'"
-      [disabled]="!hasAudio()"
-      (click)="togglePlayPause()"
-    >
+  <div class="transport-panel">
+    <button type="button" mat-fab extended color="primary" [disabled]="!hasAudio()" (click)="togglePlayPause()">
+      <mat-icon>{{ engine.transport() === 'playing' ? 'pause' : 'play_arrow' }}</mat-icon>
       {{ engine.transport() === 'playing' ? text().pause : text().play }}
     </button>
-    <button type="button" class="transport-btn stop" [disabled]="engine.transport() === 'idle'" (click)="stop()">
+    <button type="button" mat-stroked-button [disabled]="engine.transport() === 'idle'" (click)="stop()">
+      <mat-icon>stop</mat-icon>
       {{ text().stop }}
     </button>
-  </section>
+  </div>
 </div>
