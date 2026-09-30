@@ -111,14 +111,41 @@
       <mat-card-content>
         <p class="trim-label">{{ text().trimLabel }}</p>
         <the-chords-waveform-trimmer
+          #waveformTrimmer
           [file]="audioFile()"
           (loaded)="onWaveformLoaded($event)"
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"
-          style="overflow-x: scroll;"        />
+          (cutRegionChanged)="hasCutRegion.set($event)"
+          (canUndo)="canUndoCut.set($event)"
+          style="overflow-x: scroll !important;"
+        />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s
         </p>
+        <div class="cut-tools">
+          @if (!hasCutRegion()) {
+            <button type="button" mat-stroked-button (click)="waveformTrimmer.addCutRegion()">
+              <mat-icon>content_cut</mat-icon>
+              {{ text().markCutLabel }}
+            </button>
+          } @else {
+            <button type="button" mat-flat-button color="warn" (click)="waveformTrimmer.applyCut()">
+              <mat-icon>check</mat-icon>
+              {{ text().applyCutLabel }}
+            </button>
+            <button type="button" mat-stroked-button (click)="waveformTrimmer.cancelCut()">
+              <mat-icon>close</mat-icon>
+              {{ text().cancelCutLabel }}
+            </button>
+          }
+          @if (canUndoCut()) {
+            <button type="button" mat-stroked-button (click)="waveformTrimmer.undo()">
+              <mat-icon>undo</mat-icon>
+              {{ text().undoCutLabel }}
+            </button>
+          }
+        </div>
       </mat-card-content>
     </mat-card>
   } @else {

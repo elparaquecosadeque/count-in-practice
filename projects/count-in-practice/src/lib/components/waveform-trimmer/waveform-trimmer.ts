@@ -3,6 +3,8 @@ import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin, { Region } from 'wavesurfer.js/plugins/regions';
 import TimelinePlugin from 'wavesurfer.js/plugins/timeline';
 import ZoomPlugin from 'wavesurfer.js/plugins/zoom';
+import { spliceAudioBuffer } from '../../audio-splice';
+import { encodeWav } from '../../wav-encoder';
 import { TrimRange } from '../../models';
 
 export interface WaveformLoaded {
@@ -10,9 +12,15 @@ export interface WaveformLoaded {
   duration: number;
 }
 
+interface AudioState {
+  blob: Blob;
+  buffer: AudioBuffer;
+}
+
 // Thin wrapper around wavesurfer.js (core) + its official RegionsPlugin — not the
 // stale, NgModule-based `angular-wavesurfer-service` package. Renders the real
-// waveform and a single draggable/resizable region that defines the trim range.
+// waveform, a single draggable/resizable region that defines the trim range, and
+// an optional second "cut" region for destructively excising a middle chunk.
 @Component({
   selector: 'the-chords-waveform-trimmer',
   imports: [],
@@ -29,12 +37,17 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly loaded = output<WaveformLoaded>();
   readonly trimChange = output<TrimRange>();
   readonly loadError = output<void>();
+  readonly cutRegionChanged = output<boolean>();
+  readonly canUndo = output<boolean>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('container');
 
   private wavesurfer: WaveSurfer | null = null;
   private regions: ReturnType<typeof RegionsPlugin.create> | null = null;
   private activeRegion: Region | null = null;
+  private cutRegion: Region | null = null;
+  private current: AudioState | null = null;
+  private previous: AudioState | null = null;
   private viewReady = false;
   private removeCtrlWheelGuard: (() => void) | null = null;
 
@@ -57,23 +70,72 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.removeCtrlWheelGuard?.();
   }
 
+  // Adds a small draggable/resizable "cut" region (visually distinct, red)
+  // centered within the current trim selection. Only one at a time.
+  addCutRegion(): void {
+    if (!this.regions || !this.activeRegion || this.cutRegion) return;
+    const trimStart = this.activeRegion.start;
+    const trimEnd = this.activeRegion.end;
+    const span = trimEnd - trimStart;
+    const width = Math.max(0.25, Math.min(2, span * 0.2));
+    const center = trimStart + span / 2;
+    const start = Math.max(trimStart, center - width / 2);
+    const end = Math.min(trimEnd, center + width / 2);
+
+    this.cutRegion = this.regions.addRegion({
+      start,
+      end,
+      drag: true,
+      resize: true,
+      color: 'rgba(255, 64, 64, 0.4)',
+    });
+    this.cutRegionChanged.emit(true);
+  }
+
+  cancelCut(): void {
+    this.cutRegion?.remove();
+    this.cutRegion = null;
+    this.cutRegionChanged.emit(false);
+  }
+
+  // Destructive: splices the cut region out of the current audio (clamped to
+  // the trim region's own bounds) and reloads the waveform with the result.
+  // Keeps the pre-cut state so undo() can restore it — one level only.
+  async applyCut(): Promise<void> {
+    if (!this.cutRegion || !this.activeRegion || !this.current) return;
+    const trimStart = this.activeRegion.start;
+    const trimEnd = this.activeRegion.end;
+    const cutStart = this.cutRegion.start;
+    const cutEnd = this.cutRegion.end;
+
+    this.previous = this.current;
+    this.canUndo.emit(true);
+
+    const spliced = spliceAudioBuffer(this.current.buffer, trimStart, cutStart, cutEnd, trimEnd);
+    const blob = new Blob([encodeWav(spliced)], { type: 'audio/wav' });
+
+    this.cutRegion = null;
+    this.cutRegionChanged.emit(false);
+    await this.mountWavesurfer({ blob, buffer: spliced });
+  }
+
+  async undo(): Promise<void> {
+    if (!this.previous) return;
+    const state = this.previous;
+    this.previous = null;
+    this.canUndo.emit(false);
+    await this.mountWavesurfer(state);
+  }
+
   private async loadCurrentFile(): Promise<void> {
     const file = this.file();
-    this.wavesurfer?.destroy();
-    this.wavesurfer = null;
-    this.regions = null;
-    this.activeRegion = null;
-    this.removeCtrlWheelGuard?.();
-    this.removeCtrlWheelGuard = null;
-    if (!file) return;
-
-    const host = this.container().nativeElement;
-    const style = getComputedStyle(host);
-    const waveColor = style.getPropertyValue('--mat-sys-outline').trim() || '#888';
-    const progressColor = style.getPropertyValue('--mat-sys-primary').trim() || '#3b82f6';
-    const cursorColor = style.getPropertyValue('--mat-sys-tertiary').trim() || '#f59e0b';
-    const timelineColor = style.getPropertyValue('--mat-sys-on-surface').trim() || '#f8f8ff';
-    const regionColor = `color-mix(in srgb, ${progressColor} 25%, transparent)`;
+    if (!file) {
+      this.teardown();
+      this.previous = null;
+      this.cutRegionChanged.emit(false);
+      this.canUndo.emit(false);
+      return;
+    }
 
     // Decode ourselves rather than letting wavesurfer fetch+decode the blob
     // internally: we need the AudioBuffer for the playback engine anyway, and
@@ -93,6 +155,41 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.file() !== file) return; // superseded by a newer file while decoding
+
+    this.previous = null;
+    this.canUndo.emit(false);
+    this.cutRegionChanged.emit(false);
+    await this.mountWavesurfer({ blob: file, buffer });
+  }
+
+  // Tears down the wavesurfer instance itself. Deliberately does NOT touch
+  // `previous` (the undo snapshot) — this runs on every reload, including the
+  // one applyCut()/undo() trigger to show their own result, so clearing it
+  // here would erase the snapshot before it could ever be used. Callers that
+  // actually want to reset undo history (a fresh file) do so explicitly.
+  private teardown(): void {
+    this.wavesurfer?.destroy();
+    this.wavesurfer = null;
+    this.regions = null;
+    this.activeRegion = null;
+    this.cutRegion = null;
+    this.current = null;
+    this.removeCtrlWheelGuard?.();
+    this.removeCtrlWheelGuard = null;
+  }
+
+  private async mountWavesurfer(state: AudioState): Promise<void> {
+    this.teardown();
+    this.current = state;
+    const { blob, buffer } = state;
+
+    const host = this.container().nativeElement;
+    const style = getComputedStyle(host);
+    const waveColor = style.getPropertyValue('--mat-sys-outline').trim() || '#888';
+    const progressColor = style.getPropertyValue('--mat-sys-primary').trim() || '#3b82f6';
+    const cursorColor = style.getPropertyValue('--mat-sys-tertiary').trim() || '#f59e0b';
+    const timelineColor = style.getPropertyValue('--mat-sys-on-surface').trim() || '#f8f8ff';
+    const regionColor = `color-mix(in srgb, ${progressColor} 25%, transparent)`;
 
     const channelData: Float32Array[] = [];
     for (let c = 0; c < buffer.numberOfChannels; c++) channelData.push(buffer.getChannelData(c));
@@ -146,7 +243,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       this.trimChange.emit({ start: region.start, end: region.end });
     });
 
-    wavesurfer.loadBlob(file, channelData, buffer.duration);
+    wavesurfer.loadBlob(blob, channelData, buffer.duration);
   }
 
   private emitTrim(): void {

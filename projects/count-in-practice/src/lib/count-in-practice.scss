@@ -124,6 +124,13 @@ mat-form-field {
   gap: 10px;
 }
 
+.cut-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
 .trim-label {
   margin: 0;
   color: var(--mat-sys-tertiary);
