@@ -106,13 +106,9 @@ mat-card {
 
 .bpm-tools {
   grid-column: span 2;
-  display: flex;
-  gap: 8px;
-
-  button {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
+  // Subgrid so each button fills the column above Pre-count / Count-out.
+  display: grid;
+  grid-template-columns: subgrid;
 }
 
 .trim-card {
@@ -382,6 +378,13 @@ mat-card {
 
   // Text-only buttons and no unit suffix: at ~100px per column the icons
   // and "compases" would push the labels and values out of their boxes.
+  // Columns are too narrow for "Detectar BPM"; let the buttons share the
+  // two columns by content instead.
+  .bpm-tools {
+    display: flex;
+    gap: 8px;
+  }
+
   .bpm-tools button {
     flex: 1 1 auto;
     padding-inline: 12px;
