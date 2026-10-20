@@ -89,7 +89,7 @@ mat-card {
 }
 
 .error-text {
-  margin: 12px 0 0;
+  margin: 0 0 12px;
   color: var(--mat-sys-error);
   font-weight: 600;
 }
@@ -99,7 +99,6 @@ mat-card {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
-  margin-top: 16px;
 }
 
 .bpm-field-group {
@@ -119,9 +118,52 @@ mat-form-field {
   padding-top: 4px;
 }
 
+.trim-card {
+  position: relative;
+}
+
 .trim-card mat-card-content {
   display: grid;
   gap: 8px;
+}
+
+.trim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  // The 40px icon button would otherwise push the label row taller than the
+  // label itself; pull it into the card's top padding instead.
+  margin: -8px -8px -4px 0;
+}
+
+.replace-button:not(:disabled) {
+  color: var(--mat-sys-primary);
+}
+
+// Shown over the loaded waveform while a file is dragged onto the card, so
+// a drop is clearly a replace, not an accident.
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  border: 2px solid var(--mat-sys-primary);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--mat-sys-surface) 85%, transparent);
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+  // Drag events must keep reaching the card underneath.
+  pointer-events: none;
+  // Above wavesurfer, which positions its own layers inside the card.
+  z-index: 10;
+
+  mat-icon {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+  }
 }
 
 // Tools under the waveform: one row per tool — name on the left, its
@@ -232,12 +274,6 @@ mat-form-field {
   margin: 0 0 4px;
   color: var(--mat-sys-on-surface-variant);
   font-size: 12px;
-  text-align: center;
-}
-
-.no-audio-hint {
-  margin: 0;
-  color: var(--mat-sys-on-surface-variant);
   text-align: center;
 }
 

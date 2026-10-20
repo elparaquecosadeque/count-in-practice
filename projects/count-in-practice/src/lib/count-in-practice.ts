@@ -32,7 +32,8 @@ export interface CountInPracticeCopy {
   uploadHint: string;
   dropHint: string;
   dropActiveHint: string;
-  changeFile: string;
+  replaceAudioLabel: string;
+  dropReplaceHint: string;
   bpmLabel: string;
   detectBpmLabel: string;
   detectingBpm: string;
@@ -63,7 +64,6 @@ export interface CountInPracticeCopy {
   bar: string;
   beat: string;
   of: string;
-  noAudioHint: string;
   decodeError: string;
 }
 
@@ -75,7 +75,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     uploadHint: 'MP3, WAV or M4A',
     dropHint: 'or drag and drop a file here',
     dropActiveHint: 'Drop to upload',
-    changeFile: 'Change file',
+    replaceAudioLabel: 'Replace audio',
+    dropReplaceHint: 'Drop to replace the audio',
     bpmLabel: 'BPM',
     detectBpmLabel: 'Detect BPM',
     detectingBpm: 'Detecting…',
@@ -106,7 +107,6 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     bar: 'Bar',
     beat: 'Beat',
     of: 'of',
-    noAudioHint: 'Upload an audio file to begin.',
     decodeError: "That file couldn't be decoded — try a different MP3, WAV or M4A.",
   },
   es: {
@@ -116,7 +116,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     uploadHint: 'MP3, WAV o M4A',
     dropHint: 'o arrastra y suelta un archivo aquí',
     dropActiveHint: 'Suelta para subir',
-    changeFile: 'Cambiar archivo',
+    replaceAudioLabel: 'Reemplazar audio',
+    dropReplaceHint: 'Suelta para reemplazar el audio',
     bpmLabel: 'BPM',
     detectBpmLabel: 'Detectar BPM',
     detectingBpm: 'Detectando…',
@@ -147,7 +148,6 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     bar: 'Compás',
     beat: 'Tiempo',
     of: 'de',
-    noAudioHint: 'Sube un archivo de audio para empezar.',
     decodeError: 'No se pudo decodificar ese archivo — prueba con otro MP3, WAV o M4A.',
   },
 };

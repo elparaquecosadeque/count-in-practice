@@ -6,29 +6,6 @@
 
   <mat-card appearance="outlined">
     <mat-card-content>
-      <div
-        class="dropzone"
-        [class.dragging]="isDraggingFile()"
-        (dragover)="onDragOver($event)"
-        (dragenter)="onDragEnter($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <mat-icon>upload_file</mat-icon>
-        <button
-          type="button"
-          mat-flat-button
-          [disabled]="engine.transport() !== 'idle'"
-          (click)="fileInput.click()"
-        >
-          {{ hasAudio() ? text().changeFile : text().uploadLabel }}
-        </button>
-        <input #fileInput type="file" accept="audio/*" hidden (change)="onFileSelected($event)" />
-        <p class="dropzone-hint">
-          {{ isDraggingFile() ? text().dropActiveHint : text().uploadHint + ' — ' + text().dropHint }}
-        </p>
-      </div>
-
       @if (errorMessage(); as message) {
         <p class="error-text">{{ message }}</p>
       }
@@ -106,10 +83,31 @@
     </mat-card-content>
   </mat-card>
 
-  @if (audioFile()) {
-    <mat-card class="trim-card" appearance="outlined">
+  <mat-card
+    class="trim-card"
+    appearance="outlined"
+    (dragover)="onDragOver($event)"
+    (dragenter)="onDragEnter($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+  >
+    <input #fileInput type="file" accept="audio/*" hidden (change)="onFileSelected($event)" />
+    @if (audioFile()) {
       <mat-card-content>
-        <p class="trim-label">{{ text().trimLabel }}</p>
+        <div class="trim-header">
+          <p class="trim-label">{{ text().trimLabel }}</p>
+          <button
+            type="button"
+            mat-icon-button
+            class="replace-button"
+            [title]="text().replaceAudioLabel"
+            [attr.aria-label]="text().replaceAudioLabel"
+            [disabled]="engine.transport() !== 'idle'"
+            (click)="fileInput.click()"
+          >
+            <mat-icon>swap_horiz</mat-icon>
+          </button>
+        </div>
         <the-chords-waveform-trimmer
           #waveformTrimmer
           [file]="audioFile()"
@@ -208,10 +206,24 @@
           </div>
         </div>
       </mat-card-content>
-    </mat-card>
-  } @else {
-    <p class="no-audio-hint">{{ text().noAudioHint }}</p>
-  }
+      @if (isDraggingFile()) {
+        <div class="drop-overlay" aria-hidden="true">
+          <mat-icon>swap_horiz</mat-icon>
+          <span>{{ text().dropReplaceHint }}</span>
+        </div>
+      }
+    } @else {
+      <mat-card-content>
+        <div class="dropzone" [class.dragging]="isDraggingFile()">
+          <mat-icon>upload_file</mat-icon>
+          <button type="button" mat-flat-button (click)="fileInput.click()">{{ text().uploadLabel }}</button>
+          <p class="dropzone-hint">
+            {{ isDraggingFile() ? text().dropActiveHint : text().uploadHint + ' — ' + text().dropHint }}
+          </p>
+        </div>
+      </mat-card-content>
+    }
+  </mat-card>
 
   <mat-card class="beat-card" appearance="outlined">
     <mat-card-content>
