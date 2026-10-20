@@ -175,7 +175,12 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
         // The plugin derives its label font size from height (height / 2), so
         // 24 -> 12px labels; secondary labels default to 25% opacity, too faint.
         TimelinePlugin.create({ height: 24, secondaryLabelOpacity: 0.6, style: { color: timelineColor, opacity: '0.8' } }),
-        ZoomPlugin.create({ scale: 0.5 }),
+        // Linear zoom (the default) adds deltaY * scale px/sec per wheel tick,
+        // ~+50px/s — on a 3-minute file that's ~19x zoom from a single tick.
+        // Exponential multiplies by a fixed factor per tick instead, so it
+        // feels the same on any length: `iterations` = ticks from fully zoomed
+        // out to maxZoom (more = gentler).
+        ZoomPlugin.create({ exponentialZooming: true, iterations: 30 }),
       ],
     });
     this.wavesurfer = wavesurfer;
