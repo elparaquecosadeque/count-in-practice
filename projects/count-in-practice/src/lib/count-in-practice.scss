@@ -230,8 +230,9 @@ mat-card {
     min-width: 0;
   }
 
+  // Wide enough for the English "Threshold (dB)" label.
   .threshold-field {
-    width: 108px;
+    width: 128px;
   }
 
   .mode-field {
