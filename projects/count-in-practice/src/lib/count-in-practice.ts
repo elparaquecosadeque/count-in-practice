@@ -153,7 +153,7 @@ const BARS_MAX = 8;
   ],
   templateUrl: './count-in-practice.html',
   styleUrl: './count-in-practice.scss',
-  host: { '[attr.lang]': 'language()' },
+  host: { '[attr.lang]': 'language()', '(document:keydown.space)': 'onSpaceKey($event)' },
 })
 export class CountInPractice {
   private readonly settingsStorage = inject(SettingsStorageService);
@@ -319,6 +319,16 @@ export class CountInPractice {
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return BARS_MIN;
     return Math.min(BARS_MAX, Math.max(BARS_MIN, Math.round(parsed)));
+  }
+
+  // Global Space = play/pause, except when focus is on something Space already
+  // means something for (typing, a focused button's own click, mat-select).
+  onSpaceKey(event: Event): void {
+    const target = event.target as HTMLElement;
+    if ((event as KeyboardEvent).repeat || !this.hasAudio()) return;
+    if (target.closest('input, textarea, select, button, [contenteditable], [role="combobox"], [role="listbox"]')) return;
+    event.preventDefault(); // otherwise the page scrolls
+    this.togglePlayPause();
   }
 
   togglePlayPause(): void {
