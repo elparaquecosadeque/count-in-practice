@@ -33,6 +33,9 @@ interface AudioState {
 })
 export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly file = input<File | null>(null);
+  // While the engine is playing, trim/cut edits would change the cycle length
+  // mid-loop — the parent locks the regions instead.
+  readonly locked = input(false);
 
   readonly loaded = output<WaveformLoaded>();
   readonly trimChange = output<TrimRange>();
@@ -57,6 +60,10 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     effect(() => {
       this.file();
       if (this.viewReady) this.loadCurrentFile();
+    });
+    effect(() => {
+      const editable = !this.locked();
+      for (const region of [this.activeRegion, this.cutRegion]) region?.setOptions({ drag: editable, resize: editable });
     });
   }
 
@@ -232,8 +239,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       const region = regions.addRegion({
         start: 0,
         end: duration,
-        drag: true,
-        resize: true,
+        drag: !this.locked(),
+        resize: !this.locked(),
         color: regionColor,
       });
       this.activeRegion = region;
