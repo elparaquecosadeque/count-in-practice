@@ -1,0 +1,31 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:lib
+      - name: Verify tag matches package version
+        run: node -e "const v=require('./projects/count-in-practice/package.json').version; if(process.env.GITHUB_REF_NAME !== 'v'+v) throw new Error('Tag must be v'+v)"
+      - run: npm pack ./dist/count-in-practice
+      - run: gh release create "$GITHUB_REF_NAME" ./*.tgz --generate-notes --verify-tag --title "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
+#
