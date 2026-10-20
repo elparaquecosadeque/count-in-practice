@@ -14,11 +14,28 @@
     )
   );
 
+  color-scheme: dark;
   display: block;
   min-height: 100%;
   background: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+// Same palettes, light tones. Only the color tokens change, so typography and
+// density come from the base theme above.
+:host([data-theme='light']) {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: theme.$primary-palette,
+        tertiary: theme.$tertiary-palette,
+      ),
+    )
+  );
+
+  color-scheme: light;
 }
 
 * {

@@ -1,4 +1,15 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewEncapsulation, effect, input, output, viewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  ViewEncapsulation,
+  afterRenderEffect,
+  effect,
+  input,
+  output,
+  viewChild,
+} from '@angular/core';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin, { Region } from 'wavesurfer.js/plugins/regions';
 import TimelinePlugin from 'wavesurfer.js/plugins/timeline';
@@ -6,7 +17,7 @@ import ZoomPlugin from 'wavesurfer.js/plugins/zoom';
 import { cropAudioBuffer } from '../../audio-crop';
 import { SilenceTrimMode, findSoundBounds } from '../../silence';
 import { encodeWav } from '../../wav-encoder';
-import { TrimRange } from '../../models';
+import { Theme, TrimRange } from '../../models';
 
 export interface WaveformLoaded {
   buffer: AudioBuffer;
@@ -40,6 +51,9 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   // Playback position from the engine (seconds into the buffer) — the engine,
   // not wavesurfer, does the playing, so wavesurfer's own cursor never moves.
   readonly cursorTime = input(0);
+  // Only a trigger: wavesurfer paints on a canvas with colors read once from
+  // the theme tokens, so they have to be re-read when the theme flips.
+  readonly theme = input<Theme>('dark');
 
   readonly loaded = output<WaveformLoaded>();
   readonly trimChange = output<TrimRange>();
@@ -71,6 +85,15 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     effect(() => {
       const editable = !this.locked();
       this.activeRegion?.setOptions({ drag: editable, resize: editable });
+    });
+    // After render, so the parent's data-theme (and its tokens) is applied
+    // before the colors are read.
+    afterRenderEffect(() => {
+      this.theme();
+      if (!this.wavesurfer) return;
+      const { waveColor, progressColor, cursorColor, regionColor } = this.readColors();
+      this.wavesurfer.setOptions({ waveColor, progressColor, cursorColor });
+      this.activeRegion?.setOptions({ color: regionColor });
     });
     effect(() => {
       const time = this.cursorTime();
@@ -185,6 +208,15 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.removeCtrlWheelGuard = null;
   }
 
+  private readColors() {
+    const style = getComputedStyle(this.container().nativeElement);
+    const waveColor = style.getPropertyValue('--mat-sys-outline').trim() || '#888';
+    const progressColor = style.getPropertyValue('--mat-sys-primary').trim() || '#3b82f6';
+    const cursorColor = style.getPropertyValue('--mat-sys-tertiary').trim() || '#f59e0b';
+    const regionColor = `color-mix(in srgb, ${progressColor} 25%, transparent)`;
+    return { waveColor, progressColor, cursorColor, regionColor };
+  }
+
   private async mountWavesurfer(state: AudioState): Promise<void> {
     this.teardown();
     this.current = state;
@@ -194,12 +226,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     const { blob, buffer } = state;
 
     const host = this.container().nativeElement;
-    const style = getComputedStyle(host);
-    const waveColor = style.getPropertyValue('--mat-sys-outline').trim() || '#888';
-    const progressColor = style.getPropertyValue('--mat-sys-primary').trim() || '#3b82f6';
-    const cursorColor = style.getPropertyValue('--mat-sys-tertiary').trim() || '#f59e0b';
-    const timelineColor = style.getPropertyValue('--mat-sys-on-surface').trim() || '#f8f8ff';
-    const regionColor = `color-mix(in srgb, ${progressColor} 25%, transparent)`;
+    const { waveColor, progressColor, cursorColor, regionColor } = this.readColors();
 
     const channelData: Float32Array[] = [];
     for (let c = 0; c < buffer.numberOfChannels; c++) channelData.push(buffer.getChannelData(c));
@@ -219,7 +246,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
         regions,
         // The plugin derives its label font size from height (height / 2), so
         // 24 -> 12px labels; secondary labels default to 25% opacity, too faint.
-        TimelinePlugin.create({ height: 24, secondaryLabelOpacity: 0.6, style: { color: timelineColor, opacity: '0.8' } }),
+        // No color: labels inherit the host's on-surface, so they follow the theme.
+        TimelinePlugin.create({ height: 24, secondaryLabelOpacity: 0.6, style: { opacity: '0.8' } }),
         // Linear zoom (the default) adds deltaY * scale px/sec per wheel tick,
         // ~+50px/s — on a 3-minute file that's ~19x zoom from a single tick.
         // Exponential multiplies by a fixed factor per tick instead, so it

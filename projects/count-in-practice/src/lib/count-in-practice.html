@@ -115,6 +115,7 @@
           [file]="audioFile()"
           [locked]="engine.transport() !== 'idle'"
           [cursorTime]="engine.cursorTime()"
+          [theme]="theme()"
           (loaded)="onWaveformLoaded($event)"
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"

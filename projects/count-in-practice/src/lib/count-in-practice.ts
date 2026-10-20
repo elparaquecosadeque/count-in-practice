@@ -18,6 +18,7 @@ import {
   SILENCE_DB_MAX,
   SILENCE_DB_MIN,
   TIME_SIGNATURES,
+  Theme,
   TrimRange,
 } from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
@@ -172,13 +173,18 @@ const COPY: Record<Language, CountInPracticeCopy> = {
   ],
   templateUrl: './count-in-practice.html',
   styleUrl: './count-in-practice.scss',
-  host: { '[attr.lang]': 'language()', '(document:keydown.space)': 'onSpaceKey($event)' },
+  host: {
+    '[attr.lang]': 'language()',
+    '[attr.data-theme]': 'theme()',
+    '(document:keydown.space)': 'onSpaceKey($event)',
+  },
 })
 export class CountInPractice {
   private readonly settingsStorage = inject(SettingsStorageService);
   readonly engine = inject(CountInEngineService);
 
   readonly language = input<Language>('en');
+  readonly theme = input<Theme>('dark');
   readonly text = computed(() => COPY[this.language()]);
 
   readonly timeSignatures = TIME_SIGNATURES;

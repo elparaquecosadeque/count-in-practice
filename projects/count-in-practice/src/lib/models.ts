@@ -14,6 +14,8 @@ export type TransportState = 'idle' | 'playing' | 'paused';
 
 export type Language = 'en' | 'es';
 
+export type Theme = 'dark' | 'light';
+
 // Single source for the ranges the UI allows; inputs, tap tempo, BPM detection
 // and stored-settings validation all clamp against these.
 export const BPM_MIN = 40;
