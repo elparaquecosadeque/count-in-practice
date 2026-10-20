@@ -15,6 +15,9 @@ export class CountInEngineService {
   readonly isAccent = signal(false);
   readonly barInPhase = signal(1);
   readonly barsInPhase = signal(1);
+  // Where in the buffer (seconds) the waveform cursor should sit: trim start
+  // during Pre-Count, following the audio while it plays, trim end after it.
+  readonly cursorTime = signal(0);
 
   private audioCtx: AudioContext | null = null;
   private buffer: AudioBuffer | null = null;
@@ -36,6 +39,8 @@ export class CountInEngineService {
   // Stop must cancel them or they still sound after the transport is idle.
   private readonly scheduledClicks = new Set<OscillatorNode>();
   private readonly visualTimeouts = new Set<ReturnType<typeof setTimeout>>();
+  private audioStartedAt = 0;
+  private cursorFrameId: number | null = null;
 
   get audioContext(): AudioContext {
     this.audioCtx ??= new AudioContext();
@@ -48,6 +53,7 @@ export class CountInEngineService {
 
   setTrim(trim: TrimRange): void {
     this.trim = trim;
+    if (this.transport() === 'idle') this.cursorTime.set(trim.start);
   }
 
   setSettings(settings: CountInSettings): void {
@@ -74,6 +80,7 @@ export class CountInEngineService {
       ctx.resume();
       this.transport.set('playing');
       this.schedulerId = window.setInterval(() => this.scheduler(), this.lookaheadMs);
+      this.startCursorLoop();
       return;
     }
     if (ctx.state === 'suspended') ctx.resume();
@@ -83,6 +90,7 @@ export class CountInEngineService {
     this.scheduledAudioForCycleStart = null;
     this.transport.set('playing');
     this.schedulerId = window.setInterval(() => this.scheduler(), this.lookaheadMs);
+    this.startCursorLoop();
   }
 
   pause(): void {
@@ -111,6 +119,7 @@ export class CountInEngineService {
     this.isAccent.set(false);
     this.barInPhase.set(1);
     this.barsInPhase.set(this.settings.preCountBars);
+    this.cursorTime.set(this.trim.start);
   }
 
   private clearScheduler(): void {
@@ -120,6 +129,22 @@ export class CountInEngineService {
     }
     for (const id of this.visualTimeouts) clearTimeout(id);
     this.visualTimeouts.clear();
+    if (this.cursorFrameId !== null) {
+      cancelAnimationFrame(this.cursorFrameId);
+      this.cursorFrameId = null;
+    }
+  }
+
+  // Once per frame while playing. Pause freezes audioCtx.currentTime, so the
+  // cursor freezes with it; the loop itself is stopped by clearScheduler().
+  private startCursorLoop(): void {
+    const tick = () => {
+      const duration = Math.max(0, this.trim.end - this.trim.start);
+      const elapsed = this.phase() === 'preCount' ? 0 : this.audioContext.currentTime - this.audioStartedAt;
+      this.cursorTime.set(this.trim.start + Math.min(duration, Math.max(0, elapsed)));
+      this.cursorFrameId = requestAnimationFrame(tick);
+    };
+    this.cursorFrameId = requestAnimationFrame(tick);
   }
 
   private scheduler(): void {
@@ -177,6 +202,7 @@ export class CountInEngineService {
     source.connect(ctx.destination);
     source.start(time, this.trim.start, duration);
     this.currentSource = source;
+    this.audioStartedAt = time;
   }
 
   private scheduleVisualUpdate(time: number, pos: ReturnType<typeof phaseAt>): void {

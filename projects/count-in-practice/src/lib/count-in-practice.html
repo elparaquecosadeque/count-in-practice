@@ -114,6 +114,7 @@
           #waveformTrimmer
           [file]="audioFile()"
           [locked]="engine.transport() !== 'idle'"
+          [cursorTime]="engine.cursorTime()"
           (loaded)="onWaveformLoaded($event)"
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"

@@ -36,6 +36,9 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   // While the engine is playing, trim/crop edits would change the cycle length
   // mid-loop — the parent locks the regions instead.
   readonly locked = input(false);
+  // Playback position from the engine (seconds into the buffer) — the engine,
+  // not wavesurfer, does the playing, so wavesurfer's own cursor never moves.
+  readonly cursorTime = input(0);
 
   readonly loaded = output<WaveformLoaded>();
   readonly trimChange = output<TrimRange>();
@@ -62,6 +65,10 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     effect(() => {
       const editable = !this.locked();
       this.activeRegion?.setOptions({ drag: editable, resize: editable });
+    });
+    effect(() => {
+      const time = this.cursorTime();
+      if (this.activeRegion) this.wavesurfer?.setTime(time); // activeRegion set = waveform ready
     });
   }
 
