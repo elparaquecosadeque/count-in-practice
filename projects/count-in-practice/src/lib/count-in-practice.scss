@@ -16,8 +16,8 @@
 
   color-scheme: dark;
   display: block;
-  min-height: 100%;
-  background: var(--mat-sys-surface);
+  // No background of its own: the host app's page shows through, so the
+  // component never paints a mismatched band around itself when embedded.
   color: var(--mat-sys-on-surface);
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
