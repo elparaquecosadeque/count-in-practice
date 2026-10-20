@@ -185,7 +185,9 @@ export class CountInPractice {
 
   private readonly stored = this.settingsStorage.load();
   readonly bpm = signal(this.stored.bpm);
-  readonly bpmInputValue = signal(String(this.stored.bpm));
+  // Raw field value, kept apart from `bpm` so a half-typed number ("1" on the
+  // way to "120") isn't clamped mid-edit; null while the field is empty.
+  readonly bpmInputValue = signal<number | null>(this.stored.bpm);
   readonly beatsPerMeasure = signal(this.stored.beatsPerMeasure);
   readonly preCountBars = signal(this.stored.preCountBars);
   readonly countOutBars = signal(this.stored.countOutBars);
@@ -281,17 +283,16 @@ export class CountInPractice {
     this.engine.setTrim(range);
   }
 
-  onBpmInput(value: string): void {
+  // ngModel on type="number" emits a number, or null while the field is empty
+  // or mid-edit — never a string.
+  onBpmInput(value: number | null): void {
     this.bpmInputValue.set(value);
-    const parsed = Number(value);
-    if (value.trim() !== '' && !Number.isNaN(parsed) && parsed >= BPM_MIN && parsed <= BPM_MAX) {
-      this.bpm.set(parsed);
-    }
+    if (value !== null && value >= BPM_MIN && value <= BPM_MAX) this.bpm.set(value);
   }
 
+  // An empty field on blur keeps the current tempo instead of becoming 0 -> 40.
   onBpmBlur(): void {
-    const parsed = Number(this.bpmInputValue());
-    this.applyBpm(Number.isNaN(parsed) ? this.bpm() : parsed);
+    this.applyBpm(this.bpmInputValue() ?? this.bpm());
   }
 
   async detectBpm(): Promise<void> {
@@ -319,7 +320,7 @@ export class CountInPractice {
   private applyBpm(value: number): void {
     const clamped = Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(value)));
     this.bpm.set(clamped);
-    this.bpmInputValue.set(String(clamped));
+    this.bpmInputValue.set(clamped);
   }
 
   onTimeSignatureChange(value: string): void {
