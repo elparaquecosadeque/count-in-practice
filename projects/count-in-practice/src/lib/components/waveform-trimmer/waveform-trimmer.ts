@@ -172,7 +172,9 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       barGap: 1,
       plugins: [
         regions,
-        TimelinePlugin.create({ height: 16, style: { color: timelineColor, opacity: '0.6' } }),
+        // The plugin derives its label font size from height (height / 2), so
+        // 24 -> 12px labels; secondary labels default to 25% opacity, too faint.
+        TimelinePlugin.create({ height: 24, secondaryLabelOpacity: 0.6, style: { color: timelineColor, opacity: '0.8' } }),
         ZoomPlugin.create({ scale: 0.5 }),
       ],
     });
