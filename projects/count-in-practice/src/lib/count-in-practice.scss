@@ -303,7 +303,9 @@ mat-form-field {
 }
 
 .stop-button {
-  border: 1px solid var(--mat-sys-outline-variant);
+  // Inset ring instead of a border: a border eats into the border-box and
+  // pushes the icon 1px off-center.
+  box-shadow: inset 0 0 0 1px var(--mat-sys-outline-variant);
 
   &:not(:disabled) {
     color: var(--mat-sys-on-surface);
