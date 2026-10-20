@@ -119,6 +119,7 @@
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"
           (canUndo)="canUndoCrop.set($event)"
+          (seek)="engine.seek($event)"
         />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s

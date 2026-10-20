@@ -72,3 +72,20 @@ export function phaseAt(tInCycle: number, config: CycleConfig): PhasePosition {
 export function audioStartOffset(config: CycleConfig): number {
   return config.preCountBars * barDuration(config.bpm, config.beatsPerMeasure);
 }
+
+export interface SeekTarget {
+  offsetInAudio: number;
+  tInCycle: number;
+  nextBeatIndex: number;
+}
+
+// Jumping to `offsetInAudio` seconds into the trimmed audio: where that lands
+// in the cycle, and the first click on the existing beat grid at or after it
+// (so the metronome stays locked to the cycle instead of restarting the bar).
+export function seekTarget(offsetInAudio: number, config: CycleConfig): SeekTarget {
+  const offset = Math.min(Math.max(0, offsetInAudio), config.audioDuration);
+  const tInCycle = audioStartOffset(config) + offset;
+  // Tolerance so float noise right on a beat never skips that beat's click.
+  const nextBeatIndex = Math.ceil(tInCycle / beatDuration(config.bpm) - 1e-9);
+  return { offsetInAudio: offset, tInCycle, nextBeatIndex };
+}

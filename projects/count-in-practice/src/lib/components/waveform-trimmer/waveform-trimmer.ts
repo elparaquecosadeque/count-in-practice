@@ -44,6 +44,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly trimChange = output<TrimRange>();
   readonly loadError = output<void>();
   readonly canUndo = output<boolean>();
+  // User clicked/dragged on the waveform to this time (seconds into the buffer).
+  readonly seek = output<number>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('container');
 
@@ -206,6 +208,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.removeCtrlWheelGuard = () => host.removeEventListener('wheel', ctrlWheelBypass, { capture: true });
 
     wavesurfer.on('error', () => this.loadError.emit());
+    wavesurfer.on('interaction', (time) => this.seek.emit(time));
 
     wavesurfer.on('ready', (duration) => {
       const region = regions.addRegion({

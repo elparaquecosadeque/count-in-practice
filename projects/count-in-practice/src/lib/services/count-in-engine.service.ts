@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { CountInSettings, TrimRange, TransportState } from '../models';
-import { CycleConfig, Phase, audioStartOffset, cycleDuration, phaseAt } from '../scheduling';
+import { CycleConfig, Phase, PhasePosition, audioStartOffset, cycleDuration, phaseAt, seekTarget } from '../scheduling';
 
 // Shared Web Audio lookahead-scheduler clock (classic Chris Wilson pattern), same
 // technique as the-chords' own navbar metronome, extended to also trigger the
@@ -93,6 +93,31 @@ export class CountInEngineService {
     this.startCursorLoop();
   }
 
+  // Jump to `bufferTime` (seconds into the buffer, e.g. a click on the
+  // waveform) while playing or paused. Re-anchors the current cycle so that
+  // moment is "now", keeping the click grid aligned with the audio.
+  seek(bufferTime: number): void {
+    if (this.transport() === 'idle' || !this.buffer) return;
+    const config = this.config;
+    if (config.audioDuration <= 0) return;
+    const ctx = this.audioContext;
+    const target = seekTarget(bufferTime - this.trim.start, config);
+
+    this.cancelScheduledSound();
+    for (const id of this.visualTimeouts) clearTimeout(id);
+    this.visualTimeouts.clear();
+
+    this.cycleStartTime = ctx.currentTime - target.tInCycle;
+    this.nextClickBeatIndexInCycle = target.nextBeatIndex;
+    this.nextClickTime = this.cycleStartTime + target.nextBeatIndex * (60 / config.bpm);
+    this.scheduledAudioForCycleStart = this.cycleStartTime; // this lap's audio starts right here
+    this.playAudio(ctx.currentTime, target.offsetInAudio);
+    // Signals now rather than on the next beat: while paused nothing else
+    // would update them, and the cursor loop reads `phase`.
+    this.applyPosition(phaseAt(target.tInCycle, config));
+    this.cursorTime.set(this.trim.start + target.offsetInAudio);
+  }
+
   pause(): void {
     if (this.transport() !== 'playing') return;
     this.transport.set('paused');
@@ -103,6 +128,17 @@ export class CountInEngineService {
   stop(): void {
     this.transport.set('idle');
     this.clearScheduler();
+    this.cancelScheduledSound();
+    if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
+    this.phase.set('preCount');
+    this.beatIndex.set(0);
+    this.isAccent.set(false);
+    this.barInPhase.set(1);
+    this.barsInPhase.set(this.settings.preCountBars);
+    this.cursorTime.set(this.trim.start);
+  }
+
+  private cancelScheduledSound(): void {
     if (this.currentSource) {
       try {
         this.currentSource.stop();
@@ -113,13 +149,6 @@ export class CountInEngineService {
     }
     for (const osc of this.scheduledClicks) osc.stop();
     this.scheduledClicks.clear();
-    if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
-    this.phase.set('preCount');
-    this.beatIndex.set(0);
-    this.isAccent.set(false);
-    this.barInPhase.set(1);
-    this.barsInPhase.set(this.settings.preCountBars);
-    this.cursorTime.set(this.trim.start);
   }
 
   private clearScheduler(): void {
@@ -192,29 +221,33 @@ export class CountInEngineService {
     osc.onended = () => this.scheduledClicks.delete(osc);
   }
 
-  private playAudio(time: number): void {
+  private playAudio(time: number, offset = 0): void {
     if (!this.buffer) return;
     const duration = Math.max(0, this.trim.end - this.trim.start);
-    if (duration <= 0) return;
+    this.audioStartedAt = time - offset;
+    if (duration - offset <= 0) return;
     const ctx = this.audioContext;
     const source = ctx.createBufferSource();
     source.buffer = this.buffer;
     source.connect(ctx.destination);
-    source.start(time, this.trim.start, duration);
+    source.start(time, this.trim.start + offset, duration - offset);
     this.currentSource = source;
-    this.audioStartedAt = time;
   }
 
-  private scheduleVisualUpdate(time: number, pos: ReturnType<typeof phaseAt>): void {
+  private scheduleVisualUpdate(time: number, pos: PhasePosition): void {
     const delayMs = Math.max(0, (time - this.audioContext.currentTime) * 1000);
     const id = setTimeout(() => {
       this.visualTimeouts.delete(id);
-      this.phase.set(pos.phase);
-      this.beatIndex.set(pos.beatIndex);
-      this.isAccent.set(pos.isAccent);
-      this.barInPhase.set(pos.barInPhase);
-      this.barsInPhase.set(pos.barsInPhase);
+      this.applyPosition(pos);
     }, delayMs);
     this.visualTimeouts.add(id);
+  }
+
+  private applyPosition(pos: PhasePosition): void {
+    this.phase.set(pos.phase);
+    this.beatIndex.set(pos.beatIndex);
+    this.isAccent.set(pos.isAccent);
+    this.barInPhase.set(pos.barInPhase);
+    this.barsInPhase.set(pos.barsInPhase);
   }
 }
