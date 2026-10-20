@@ -122,15 +122,18 @@ mat-card {
 .trim-card mat-card-content {
   display: grid;
   gap: 8px;
+  // Explicit: the hidden file input is the card's first child, so Material's
+  // :first-child top padding never reaches this content.
+  padding: 16px;
 }
 
 .trim-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  // The 40px icon button would otherwise push the label row taller than the
-  // label itself; pull it into the card's top padding instead.
-  margin: -8px -8px -4px 0;
+  // Pull the 40px icon button into the top/right padding so its icon, not
+  // its touch target, lines up with the content edges.
+  margin: -8px -8px 0 0;
 }
 
 .replace-button:not(:disabled) {
@@ -186,13 +189,16 @@ mat-card {
   & + & {
     border-top: 1px solid var(--mat-sys-outline-variant);
   }
+
+  // The card's own padding already closes the section.
+  &:last-child {
+    padding-bottom: 0;
+  }
 }
 
 .tool-row--silence {
   grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'label options pill'
-    'message message message';
+  grid-template-areas: 'label options pill';
 }
 
 .tool-label {
@@ -251,8 +257,10 @@ mat-card {
   }
 }
 
+// Spans a row of its own, created only while the message exists: a named
+// empty row would still add a row-gap under every tool row.
 .tool-message {
-  grid-area: message;
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--mat-sys-error);
   font-size: 12px;
@@ -388,8 +396,7 @@ mat-card {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       'label pill'
-      'options options'
-      'message message';
+      'options options';
   }
 
   .tool-options mat-form-field {
