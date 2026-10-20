@@ -277,10 +277,37 @@ mat-form-field {
   text-align: center;
 }
 
-.beat-card mat-card-content {
+// Beat display on the left, transport on the right: one bar instead of a
+// centered stack plus a separate button row.
+.transport-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.beat-display {
   display: grid;
-  justify-items: center;
-  gap: 16px;
+  justify-items: start;
+  gap: 12px;
+}
+
+.transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  // When a long bar (7/8) pushes the controls onto their own line, keep
+  // them on the right rather than stranded on the left.
+  margin-left: auto;
+}
+
+.stop-button {
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  &:not(:disabled) {
+    color: var(--mat-sys-on-surface);
+  }
 }
 
 .beat-dots {
@@ -317,7 +344,6 @@ mat-form-field {
 
 .phase-readout {
   margin: 0;
-  text-align: center;
 }
 
 .phase-name {
@@ -334,14 +360,6 @@ mat-form-field {
   margin-top: 4px;
   color: var(--mat-sys-on-surface-variant);
   font-size: 13px;
-}
-
-.transport-panel {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  padding-bottom: 8px;
 }
 
 @media (max-width: 480px) {

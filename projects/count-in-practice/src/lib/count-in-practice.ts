@@ -58,6 +58,7 @@ export interface CountInPracticeCopy {
   play: string;
   pause: string;
   stop: string;
+  spaceKey: string;
   phasePreCount: string;
   phaseAudio: string;
   phaseCountOut: string;
@@ -101,6 +102,7 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     play: 'Play',
     pause: 'Pause',
     stop: 'Stop',
+    spaceKey: 'Space',
     phasePreCount: 'Pre-Count',
     phaseAudio: 'Audio',
     phaseCountOut: 'Count-Out',
@@ -142,6 +144,7 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     play: 'Reproducir',
     pause: 'Pausar',
     stop: 'Detener',
+    spaceKey: 'Espacio',
     phasePreCount: 'Pre-Count',
     phaseAudio: 'Audio',
     phaseCountOut: 'Count-Out',
@@ -209,6 +212,7 @@ export class CountInPractice {
   private dragCounter = 0;
 
   readonly beatDots = computed(() => Array.from({ length: this.beatsPerMeasure() }, (_, i) => i));
+  readonly playPauseLabel = computed(() => (this.engine.transport() === 'playing' ? this.text().pause : this.text().play));
   readonly phaseLabel = computed(() => {
     const phase = this.engine.phase();
     const text = this.text();

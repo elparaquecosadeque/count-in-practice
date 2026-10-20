@@ -226,35 +226,52 @@
   </mat-card>
 
   <mat-card class="beat-card" appearance="outlined">
-    <mat-card-content>
-      <div class="beat-dots">
-        @for (i of beatDots(); track i) {
-          <span
-            class="beat-dot"
-            [class.accent]="i === 0"
-            [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
-          ></span>
-        }
+    <mat-card-content class="transport-bar">
+      <div class="beat-display">
+        <div class="beat-dots">
+          @for (i of beatDots(); track i) {
+            <span
+              class="beat-dot"
+              [class.accent]="i === 0"
+              [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
+            ></span>
+          }
+        </div>
+        <p class="phase-readout">
+          <span class="phase-name">{{ phaseLabel() }}</span>
+          <span class="bar-beat">
+            {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
+            &middot;
+            {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
+          </span>
+        </p>
       </div>
-      <p class="phase-readout">
-        <span class="phase-name">{{ phaseLabel() }}</span>
-        <span class="bar-beat">
-          {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
-          &middot;
-          {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
-        </span>
-      </p>
+
+      <div class="transport-controls">
+        <button
+          type="button"
+          mat-fab
+          class="play-button"
+          [title]="playPauseLabel() + ' (' + text().spaceKey + ')'"
+          [attr.aria-label]="playPauseLabel()"
+          aria-keyshortcuts="Space"
+          [disabled]="!hasAudio()"
+          (click)="togglePlayPause()"
+        >
+          <mat-icon>{{ engine.transport() === 'playing' ? 'pause' : 'play_arrow' }}</mat-icon>
+        </button>
+        <button
+          type="button"
+          mat-icon-button
+          class="stop-button"
+          [title]="text().stop"
+          [attr.aria-label]="text().stop"
+          [disabled]="engine.transport() === 'idle'"
+          (click)="stop()"
+        >
+          <mat-icon>stop</mat-icon>
+        </button>
+      </div>
     </mat-card-content>
   </mat-card>
-
-  <div class="transport-panel">
-    <button type="button" mat-fab extended color="primary" [disabled]="!hasAudio()" (click)="togglePlayPause()">
-      <mat-icon>{{ engine.transport() === 'playing' ? 'pause' : 'play_arrow' }}</mat-icon>
-      {{ engine.transport() === 'playing' ? text().pause : text().play }}
-    </button>
-    <button type="button" mat-stroked-button [disabled]="engine.transport() === 'idle'" (click)="stop()">
-      <mat-icon>stop</mat-icon>
-      {{ text().stop }}
-    </button>
-  </div>
 </div>
