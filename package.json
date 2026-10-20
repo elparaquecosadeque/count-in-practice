@@ -1,6 +1,6 @@
 {
   "name": "demo-count-in-practice",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Angular vertical slice: upload audio, trim it, and practice against a synthesized metronome count-in/count-out loop via the Web Audio API.",
   "scripts": {
