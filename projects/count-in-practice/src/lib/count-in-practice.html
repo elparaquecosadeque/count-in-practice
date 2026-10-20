@@ -11,7 +11,7 @@
       }
 
       <div class="field-row">
-        <mat-form-field appearance="outline" class="bpm-field-group">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>{{ text().bpmLabel }}</mat-label>
           <input
             matInput
@@ -41,7 +41,7 @@
           </button>
         </div>
 
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>{{ text().timeSignatureLabel }}</mat-label>
           <mat-select
             [ngModel]="beatsPerMeasure()"
@@ -54,7 +54,7 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>{{ text().preCountLabel }}</mat-label>
           <input
             matInput
@@ -65,9 +65,10 @@
             [min]="barsMin"
             [max]="barsMax"
           />
+          <span matTextSuffix class="bars-unit">{{ text().barsUnit }}</span>
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>{{ text().countOutLabel }}</mat-label>
           <input
             matInput
@@ -78,6 +79,7 @@
             [min]="barsMin"
             [max]="barsMax"
           />
+          <span matTextSuffix class="bars-unit">{{ text().barsUnit }}</span>
         </mat-form-field>
       </div>
     </mat-card-content>

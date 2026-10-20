@@ -42,6 +42,7 @@ export interface CountInPracticeCopy {
   timeSignatureLabel: string;
   preCountLabel: string;
   countOutLabel: string;
+  barsUnit: string;
   trimLabel: string;
   start: string;
   end: string;
@@ -84,8 +85,9 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     detectBpmError: "Couldn't detect a tempo — try tap tempo instead.",
     tapTempoLabel: 'Tap',
     timeSignatureLabel: 'Time signature',
-    preCountLabel: 'Pre-count bars',
-    countOutLabel: 'Count-out bars',
+    preCountLabel: 'Pre-count',
+    countOutLabel: 'Count-out',
+    barsUnit: 'bars',
     trimLabel: 'Trim',
     start: 'Start',
     end: 'End',
@@ -126,8 +128,9 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     detectBpmError: 'No se pudo detectar un tempo — prueba con tap tempo.',
     tapTempoLabel: 'Tap',
     timeSignatureLabel: 'Compás',
-    preCountLabel: 'Compases de pre-count',
-    countOutLabel: 'Compases de count-out',
+    preCountLabel: 'Pre-count',
+    countOutLabel: 'Count-out',
+    barsUnit: 'compases',
     trimLabel: 'Recorte',
     start: 'Inicio',
     end: 'Fin',

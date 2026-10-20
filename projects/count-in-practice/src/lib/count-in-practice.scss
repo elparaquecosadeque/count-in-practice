@@ -94,28 +94,25 @@ mat-card {
   font-weight: 600;
 }
 
+// Two rows: tempo (BPM + how to find it), then the loop shape (meter and
+// how many bars of count-in/out). Three equal columns keep them aligned.
 .field-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
   gap: 12px;
-}
-
-.bpm-field-group {
-  flex: 1 1 140px;
-  min-width: 140px;
-}
-
-mat-form-field {
-  flex: 1 1 110px;
-  min-width: 90px;
+  @include mat.form-field-density(-2);
 }
 
 .bpm-tools {
+  grid-column: span 2;
   display: flex;
   gap: 8px;
-  align-items: center;
-  padding-top: 4px;
+
+  button {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 }
 
 .trim-card {
@@ -366,11 +363,25 @@ mat-form-field {
 
 @media (max-width: 480px) {
   .field-row {
-    flex-direction: column;
+    gap: 12px 8px;
   }
 
-  .field-row mat-form-field {
-    width: 100%;
+  // Material keeps 60px clear of the select arrow when sizing the label's
+  // notch, which in a ~100px field clips "Compás"; the arrow needs 24px.
+  .field-row ::ng-deep .mat-mdc-form-field-type-mat-select .mdc-notched-outline__notch {
+    max-width: calc(100% - 24px);
+  }
+
+  // Text-only buttons and no unit suffix: at ~100px per column the icons
+  // and "compases" would push the labels and values out of their boxes.
+  .bpm-tools button {
+    flex: 1 1 auto;
+    padding-inline: 12px;
+  }
+
+  .bpm-tools mat-icon,
+  .bars-unit {
+    display: none;
   }
 
   .tool-row--silence {
