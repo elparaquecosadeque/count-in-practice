@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "roboto",
+        "createdAt": "2026-10-20T04:56:50.957Z",
+        "reason": "Roboto comes from the Angular Material theme and is shared with the-chords"
+      }
+    ]
+  }
+}
