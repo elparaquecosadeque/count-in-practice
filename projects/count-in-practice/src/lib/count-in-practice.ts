@@ -32,10 +32,8 @@ export interface CountInPracticeCopy {
   trimLabel: string;
   start: string;
   end: string;
-  markCutLabel: string;
-  applyCutLabel: string;
-  cancelCutLabel: string;
-  undoCutLabel: string;
+  cropLabel: string;
+  undoCropLabel: string;
   play: string;
   pause: string;
   stop: string;
@@ -69,10 +67,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     trimLabel: 'Trim',
     start: 'Start',
     end: 'End',
-    markCutLabel: 'Mark cut',
-    applyCutLabel: 'Apply cut',
-    cancelCutLabel: 'Cancel cut',
-    undoCutLabel: 'Undo cut',
+    cropLabel: 'Crop to selection',
+    undoCropLabel: 'Undo crop',
     play: 'Play',
     pause: 'Pause',
     stop: 'Stop',
@@ -104,10 +100,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     trimLabel: 'Recorte',
     start: 'Inicio',
     end: 'Fin',
-    markCutLabel: 'Marcar corte',
-    applyCutLabel: 'Aplicar corte',
-    cancelCutLabel: 'Cancelar corte',
-    undoCutLabel: 'Deshacer corte',
+    cropLabel: 'Recortar a la selección',
+    undoCropLabel: 'Deshacer recorte',
     play: 'Reproducir',
     pause: 'Pausar',
     stop: 'Detener',
@@ -166,8 +160,7 @@ export class CountInPractice {
 
   readonly detectingBpm = signal(false);
   readonly isDraggingFile = signal(false);
-  readonly hasCutRegion = signal(false);
-  readonly canUndoCut = signal(false);
+  readonly canUndoCrop = signal(false);
   private tapState = createTapTempoState();
   private dragCounter = 0;
 

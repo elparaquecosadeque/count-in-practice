@@ -117,32 +117,20 @@
           (loaded)="onWaveformLoaded($event)"
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"
-          (cutRegionChanged)="hasCutRegion.set($event)"
-          (canUndo)="canUndoCut.set($event)"
+          (canUndo)="canUndoCrop.set($event)"
         />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s
         </p>
-        <div class="cut-tools">
-          @if (!hasCutRegion()) {
-            <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.addCutRegion()">
-              <mat-icon>content_cut</mat-icon>
-              {{ text().markCutLabel }}
-            </button>
-          } @else {
-            <button type="button" mat-flat-button color="warn" [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.applyCut()">
-              <mat-icon>check</mat-icon>
-              {{ text().applyCutLabel }}
-            </button>
-            <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.cancelCut()">
-              <mat-icon>close</mat-icon>
-              {{ text().cancelCutLabel }}
-            </button>
-          }
-          @if (canUndoCut()) {
+        <div class="crop-tools">
+          <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.cropToSelection()">
+            <mat-icon>crop</mat-icon>
+            {{ text().cropLabel }}
+          </button>
+          @if (canUndoCrop()) {
             <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.undo()">
               <mat-icon>undo</mat-icon>
-              {{ text().undoCutLabel }}
+              {{ text().undoCropLabel }}
             </button>
           }
         </div>

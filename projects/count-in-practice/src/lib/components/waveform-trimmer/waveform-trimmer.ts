@@ -3,7 +3,7 @@ import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin, { Region } from 'wavesurfer.js/plugins/regions';
 import TimelinePlugin from 'wavesurfer.js/plugins/timeline';
 import ZoomPlugin from 'wavesurfer.js/plugins/zoom';
-import { spliceAudioBuffer } from '../../audio-splice';
+import { cropAudioBuffer } from '../../audio-crop';
 import { encodeWav } from '../../wav-encoder';
 import { TrimRange } from '../../models';
 
@@ -19,8 +19,8 @@ interface AudioState {
 
 // Thin wrapper around wavesurfer.js (core) + its official RegionsPlugin — not the
 // stale, NgModule-based `angular-wavesurfer-service` package. Renders the real
-// waveform, a single draggable/resizable region that defines the trim range, and
-// an optional second "cut" region for destructively excising a middle chunk.
+// waveform and a single draggable/resizable region that defines the trim range,
+// which can also be applied destructively (crop to selection, with one undo).
 @Component({
   selector: 'the-chords-waveform-trimmer',
   imports: [],
@@ -33,14 +33,13 @@ interface AudioState {
 })
 export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly file = input<File | null>(null);
-  // While the engine is playing, trim/cut edits would change the cycle length
+  // While the engine is playing, trim/crop edits would change the cycle length
   // mid-loop — the parent locks the regions instead.
   readonly locked = input(false);
 
   readonly loaded = output<WaveformLoaded>();
   readonly trimChange = output<TrimRange>();
   readonly loadError = output<void>();
-  readonly cutRegionChanged = output<boolean>();
   readonly canUndo = output<boolean>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('container');
@@ -48,7 +47,6 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   private wavesurfer: WaveSurfer | null = null;
   private regions: ReturnType<typeof RegionsPlugin.create> | null = null;
   private activeRegion: Region | null = null;
-  private cutRegion: Region | null = null;
   private current: AudioState | null = null;
   private previous: AudioState | null = null;
   private viewReady = false;
@@ -63,7 +61,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     });
     effect(() => {
       const editable = !this.locked();
-      for (const region of [this.activeRegion, this.cutRegion]) region?.setOptions({ drag: editable, resize: editable });
+      this.activeRegion?.setOptions({ drag: editable, resize: editable });
     });
   }
 
@@ -77,53 +75,16 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.removeCtrlWheelGuard?.();
   }
 
-  // Adds a small draggable/resizable "cut" region (visually distinct, red)
-  // centered within the current trim selection. Only one at a time.
-  addCutRegion(): void {
-    if (!this.regions || !this.activeRegion || this.cutRegion) return;
-    const trimStart = this.activeRegion.start;
-    const trimEnd = this.activeRegion.end;
-    const span = trimEnd - trimStart;
-    const width = Math.max(0.25, Math.min(2, span * 0.2));
-    const center = trimStart + span / 2;
-    const start = Math.max(trimStart, center - width / 2);
-    const end = Math.min(trimEnd, center + width / 2);
-
-    this.cutRegion = this.regions.addRegion({
-      start,
-      end,
-      drag: true,
-      resize: true,
-      color: 'rgba(255, 64, 64, 0.4)',
-    });
-    this.cutRegionChanged.emit(true);
-  }
-
-  cancelCut(): void {
-    this.cutRegion?.remove();
-    this.cutRegion = null;
-    this.cutRegionChanged.emit(false);
-  }
-
-  // Destructive: splices the cut region out of the current audio (clamped to
-  // the trim region's own bounds) and reloads the waveform with the result.
-  // Keeps the pre-cut state so undo() can restore it — one level only.
-  async applyCut(): Promise<void> {
-    if (!this.cutRegion || !this.activeRegion || !this.current) return;
-    const trimStart = this.activeRegion.start;
-    const trimEnd = this.activeRegion.end;
-    const cutStart = this.cutRegion.start;
-    const cutEnd = this.cutRegion.end;
+  // Destructive: keeps only the trim selection and reloads the waveform with
+  // it. Keeps the pre-crop state so undo() can restore it — one level only.
+  async cropToSelection(): Promise<void> {
+    if (!this.activeRegion || !this.current) return;
+    const cropped = cropAudioBuffer(this.current.buffer, this.activeRegion.start, this.activeRegion.end);
+    const blob = new Blob([encodeWav(cropped)], { type: 'audio/wav' });
 
     this.previous = this.current;
     this.canUndo.emit(true);
-
-    const spliced = spliceAudioBuffer(this.current.buffer, trimStart, cutStart, cutEnd, trimEnd);
-    const blob = new Blob([encodeWav(spliced)], { type: 'audio/wav' });
-
-    this.cutRegion = null;
-    this.cutRegionChanged.emit(false);
-    await this.mountWavesurfer({ blob, buffer: spliced });
+    await this.mountWavesurfer({ blob, buffer: cropped });
   }
 
   async undo(): Promise<void> {
@@ -139,7 +100,6 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     if (!file) {
       this.teardown();
       this.previous = null;
-      this.cutRegionChanged.emit(false);
       this.canUndo.emit(false);
       return;
     }
@@ -165,13 +125,12 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
 
     this.previous = null;
     this.canUndo.emit(false);
-    this.cutRegionChanged.emit(false);
     await this.mountWavesurfer({ blob: file, buffer });
   }
 
   // Tears down the wavesurfer instance itself. Deliberately does NOT touch
   // `previous` (the undo snapshot) — this runs on every reload, including the
-  // one applyCut()/undo() trigger to show their own result, so clearing it
+  // one cropToSelection()/undo() trigger to show their own result, so clearing it
   // here would erase the snapshot before it could ever be used. Callers that
   // actually want to reset undo history (a fresh file) do so explicitly.
   private teardown(): void {
@@ -179,7 +138,6 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.wavesurfer = null;
     this.regions = null;
     this.activeRegion = null;
-    this.cutRegion = null;
     this.current = null;
     this.removeCtrlWheelGuard?.();
     this.removeCtrlWheelGuard = null;
