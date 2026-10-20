@@ -119,7 +119,6 @@
           (loadError)="onWaveformError()"
           (cutRegionChanged)="hasCutRegion.set($event)"
           (canUndo)="canUndoCut.set($event)"
-          style="overflow-x: scroll !important;"
         />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s

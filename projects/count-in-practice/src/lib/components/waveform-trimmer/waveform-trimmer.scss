@@ -1,11 +1,13 @@
-:host {
+// Element selector, not `:host` — with ViewEncapsulation.None Angular leaves
+// `:host` untouched and it matches nothing in the light DOM.
+the-chords-waveform-trimmer {
   display: block;
   // The actual containment boundary needs to be here, not just on the inner
   // `.waveform-container` — confirmed by testing: zooming in still pushed the
   // whole page wider even with that inner overflow-x:hidden in place. This
-  // component (ViewEncapsulation.None) is a real custom element with its own
-  // box; wavesurfer's growing wrapper apparently escapes the inner div's
-  // clipping and needs to be stopped at the host boundary itself.
+  // component is a real custom element with its own box; wavesurfer's growing
+  // wrapper apparently escapes the inner div's clipping and needs to be
+  // stopped at the host boundary itself.
   overflow-x: hidden;
 }
 
