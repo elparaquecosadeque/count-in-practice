@@ -29,7 +29,6 @@ export interface CountInPracticeCopy {
   timeSignatureLabel: string;
   preCountLabel: string;
   countOutLabel: string;
-  barsUnit: string;
   trimLabel: string;
   start: string;
   end: string;
@@ -67,7 +66,6 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     timeSignatureLabel: 'Time signature',
     preCountLabel: 'Pre-count bars',
     countOutLabel: 'Count-out bars',
-    barsUnit: 'bars',
     trimLabel: 'Trim',
     start: 'Start',
     end: 'End',
@@ -101,9 +99,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     detectBpmError: 'No se pudo detectar un tempo — prueba con tap tempo.',
     tapTempoLabel: 'Tap',
     timeSignatureLabel: 'Compás',
-    preCountLabel: 'Bares de pre-count',
-    countOutLabel: 'Bares de count-out',
-    barsUnit: 'bares',
+    preCountLabel: 'Compases de pre-count',
+    countOutLabel: 'Compases de count-out',
     trimLabel: 'Recorte',
     start: 'Inicio',
     end: 'Fin',
@@ -117,8 +114,8 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     phasePreCount: 'Pre-Count',
     phaseAudio: 'Audio',
     phaseCountOut: 'Count-Out',
-    bar: 'Bar',
-    beat: 'Beat',
+    bar: 'Compás',
+    beat: 'Tiempo',
     of: 'de',
     noAudioHint: 'Sube un archivo de audio para empezar.',
     decodeError: 'No se pudo decodificar ese archivo — prueba con otro MP3, WAV o M4A.',
