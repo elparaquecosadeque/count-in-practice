@@ -121,26 +121,102 @@ mat-form-field {
 
 .trim-card mat-card-content {
   display: grid;
-  gap: 10px;
-}
-
-.crop-tools {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
 }
 
-.silence-tools {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+// Tools under the waveform: one row per tool — name on the left, its
+// [action | undo] pill on the right, options (if any) in between. Rows are
+// separated by a hairline rather than wrapped in their own containers.
+.trim-tools {
+  display: grid;
+  margin-top: 8px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  // Compact fields so they sit on the same line as the 40px pill.
+  @include mat.form-field-density(-4);
+}
+
+.tool-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'label pill';
   align-items: center;
+  column-gap: 12px;
+  row-gap: 8px;
+  padding: 12px 0;
+
+  & + & {
+    border-top: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.tool-row--silence {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'label options pill'
+    'message message message';
+}
+
+.tool-label {
+  grid-area: label;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tool-options {
+  grid-area: options;
+  display: flex;
   gap: 8px;
 
   mat-form-field {
-    flex: 0 1 160px;
+    flex: none;
+    min-width: 0;
   }
+
+  .threshold-field {
+    width: 108px;
+  }
+
+  .mode-field {
+    width: 148px;
+  }
+}
+
+.action-pill {
+  grid-area: pill;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 999px;
+
+  .pill-action:not(:disabled) {
+    color: var(--mat-sys-primary);
+  }
+
+  .pill-undo {
+    position: relative;
+
+    // Divider between the two halves of the pill.
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 25%;
+      height: 50%;
+      border-left: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    &:not(:disabled) {
+      color: var(--mat-sys-on-surface);
+    }
+  }
+}
+
+.tool-message {
+  grid-area: message;
+  margin: 0;
+  color: var(--mat-sys-error);
+  font-size: 12px;
 }
 
 .trim-label {
@@ -153,7 +229,7 @@ mat-form-field {
 }
 
 .trim-readout {
-  margin: 0;
+  margin: 0 0 4px;
   color: var(--mat-sys-on-surface-variant);
   font-size: 12px;
   text-align: center;
@@ -237,7 +313,20 @@ mat-form-field {
     flex-direction: column;
   }
 
-  mat-form-field {
+  .field-row mat-form-field {
     width: 100%;
+  }
+
+  .tool-row--silence {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label pill'
+      'options options'
+      'message message';
+  }
+
+  .tool-options mat-form-field {
+    flex: 1 1 0;
+    width: auto;
   }
 }

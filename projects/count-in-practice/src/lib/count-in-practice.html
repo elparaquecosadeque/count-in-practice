@@ -119,48 +119,93 @@
           (trimChange)="onTrimChange($event)"
           (loadError)="onWaveformError()"
           (canUndo)="canUndoCrop.set($event)"
+          (canUndoSilence)="canUndoSilence.set($event)"
           (seek)="engine.seek($event)"
         />
         <p class="trim-readout">
           {{ text().start }}: {{ trimRange().start.toFixed(2) }}s &middot; {{ text().end }}: {{ trimRange().end.toFixed(2) }}s
         </p>
-        <div class="crop-tools">
-          <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.cropToSelection()">
-            <mat-icon>crop</mat-icon>
-            {{ text().cropLabel }}
-          </button>
-          @if (canUndoCrop()) {
-            <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="waveformTrimmer.undo()">
-              <mat-icon>undo</mat-icon>
-              {{ text().undoCropLabel }}
-            </button>
-          }
-        </div>
-        <div class="silence-tools">
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().silenceThresholdLabel }}</mat-label>
-            <input
-              matInput
-              type="number"
-              [ngModel]="silenceThresholdDb()"
-              (ngModelChange)="onSilenceThresholdChange($event)"
-              [disabled]="engine.transport() !== 'idle'"
-              [min]="silenceDbMin"
-              [max]="silenceDbMax"
-            />
-          </mat-form-field>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().silenceModeLabel }}</mat-label>
-            <mat-select [ngModel]="silenceMode()" (ngModelChange)="silenceMode.set($event)" [disabled]="engine.transport() !== 'idle'">
-              <mat-option value="both">{{ text().silenceModeBoth }}</mat-option>
-              <mat-option value="start">{{ text().silenceModeStart }}</mat-option>
-              <mat-option value="end">{{ text().silenceModeEnd }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="trimSilence(waveformTrimmer)">
-            <mat-icon>content_cut</mat-icon>
-            {{ text().trimSilenceLabel }}
-          </button>
+        <div class="trim-tools">
+          <div class="tool-row">
+            <span class="tool-label">{{ text().cropLabel }}</span>
+            <div class="action-pill" role="group" [attr.aria-label]="text().cropLabel">
+              <button
+                type="button"
+                mat-icon-button
+                class="pill-action"
+                [title]="text().cropLabel"
+                [attr.aria-label]="text().cropLabel"
+                [disabled]="engine.transport() !== 'idle'"
+                (click)="waveformTrimmer.cropToSelection()"
+              >
+                <mat-icon>crop</mat-icon>
+              </button>
+              <button
+                type="button"
+                mat-icon-button
+                class="pill-undo"
+                [title]="text().undoCropLabel"
+                [attr.aria-label]="text().undoCropLabel"
+                [disabled]="!canUndoCrop() || engine.transport() !== 'idle'"
+                (click)="waveformTrimmer.undo()"
+              >
+                <mat-icon>undo</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="tool-row tool-row--silence">
+            <span class="tool-label">{{ text().trimSilenceLabel }}</span>
+            <div class="tool-options">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="threshold-field">
+                <mat-label>{{ text().silenceThresholdLabel }}</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [ngModel]="silenceThresholdDb()"
+                  (ngModelChange)="onSilenceThresholdChange($event)"
+                  [disabled]="engine.transport() !== 'idle'"
+                  [min]="silenceDbMin"
+                  [max]="silenceDbMax"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="mode-field">
+                <mat-label>{{ text().silenceModeLabel }}</mat-label>
+                <mat-select [panelWidth]="null" [ngModel]="silenceMode()" (ngModelChange)="silenceMode.set($event)" [disabled]="engine.transport() !== 'idle'">
+                  <mat-option value="both">{{ text().silenceModeBoth }}</mat-option>
+                  <mat-option value="start">{{ text().silenceModeStart }}</mat-option>
+                  <mat-option value="end">{{ text().silenceModeEnd }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+            <div class="action-pill" role="group" [attr.aria-label]="text().trimSilenceLabel">
+              <button
+                type="button"
+                mat-icon-button
+                class="pill-action"
+                [title]="text().trimSilenceLabel"
+                [attr.aria-label]="text().trimSilenceLabel"
+                [disabled]="engine.transport() !== 'idle'"
+                (click)="trimSilence(waveformTrimmer)"
+              >
+                <mat-icon>content_cut</mat-icon>
+              </button>
+              <button
+                type="button"
+                mat-icon-button
+                class="pill-undo"
+                [title]="text().undoSilenceLabel"
+                [attr.aria-label]="text().undoSilenceLabel"
+                [disabled]="!canUndoSilence() || engine.transport() !== 'idle'"
+                (click)="waveformTrimmer.undoSilence(); silenceMessage.set(null)"
+              >
+                <mat-icon>undo</mat-icon>
+              </button>
+            </div>
+            @if (silenceMessage(); as message) {
+              <p class="tool-message" role="status">{{ message }}</p>
+            }
+          </div>
         </div>
       </mat-card-content>
     </mat-card>

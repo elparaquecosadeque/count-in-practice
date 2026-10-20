@@ -47,6 +47,7 @@ export interface CountInPracticeCopy {
   cropLabel: string;
   undoCropLabel: string;
   trimSilenceLabel: string;
+  undoSilenceLabel: string;
   silenceThresholdLabel: string;
   silenceModeLabel: string;
   silenceModeBoth: string;
@@ -89,6 +90,7 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     cropLabel: 'Crop to selection',
     undoCropLabel: 'Undo crop',
     trimSilenceLabel: 'Trim silence',
+    undoSilenceLabel: 'Undo silence trim',
     silenceThresholdLabel: 'Threshold (dB)',
     silenceModeLabel: 'Where',
     silenceModeBoth: 'Start and end',
@@ -129,6 +131,7 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     cropLabel: 'Recortar a la selección',
     undoCropLabel: 'Deshacer recorte',
     trimSilenceLabel: 'Quitar silencios',
+    undoSilenceLabel: 'Deshacer quitar silencios',
     silenceThresholdLabel: 'Umbral (dB)',
     silenceModeLabel: 'Dónde',
     silenceModeBoth: 'Inicio y final',
@@ -198,6 +201,8 @@ export class CountInPractice {
   readonly detectingBpm = signal(false);
   readonly isDraggingFile = signal(false);
   readonly canUndoCrop = signal(false);
+  readonly canUndoSilence = signal(false);
+  readonly silenceMessage = signal<string | null>(null);
   private tapState = createTapTempoState();
   private dragCounter = 0;
 
@@ -353,10 +358,8 @@ export class CountInPractice {
   }
 
   trimSilence(trimmer: WaveformTrimmer): void {
-    this.errorMessage.set(null);
-    if (!trimmer.trimSilence(this.silenceThresholdDb(), this.silenceMode())) {
-      this.errorMessage.set(this.text().noSoundFound);
-    }
+    const found = trimmer.trimSilence(this.silenceThresholdDb(), this.silenceMode());
+    this.silenceMessage.set(found ? null : this.text().noSoundFound);
   }
 
   togglePlayPause(): void {

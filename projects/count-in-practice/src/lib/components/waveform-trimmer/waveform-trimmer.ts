@@ -45,6 +45,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   readonly trimChange = output<TrimRange>();
   readonly loadError = output<void>();
   readonly canUndo = output<boolean>();
+  readonly canUndoSilence = output<boolean>();
   // User clicked/dragged on the waveform to this time (seconds into the buffer).
   readonly seek = output<number>();
 
@@ -55,6 +56,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   private activeRegion: Region | null = null;
   private current: AudioState | null = null;
   private previous: AudioState | null = null;
+  // Trim range from just before the last trimSilence() — one level, like crop's undo.
+  private rangeBeforeSilence: TrimRange | null = null;
   private viewReady = false;
   private removeCtrlWheelGuard: (() => void) | null = null;
 
@@ -107,12 +110,23 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
     const bounds = findSoundBounds(channels, buffer.sampleRate, region.start, region.end, thresholdDb);
     if (!bounds) return false;
+    this.rangeBeforeSilence = { start: region.start, end: region.end };
+    this.canUndoSilence.emit(true);
     region.setOptions({
       start: mode === 'end' ? region.start : bounds.start,
       end: mode === 'start' ? region.end : bounds.end,
     });
     this.emitTrim();
     return true;
+  }
+
+  undoSilence(): void {
+    const range = this.rangeBeforeSilence;
+    if (!range || !this.activeRegion) return;
+    this.activeRegion.setOptions(range);
+    this.emitTrim();
+    this.rangeBeforeSilence = null;
+    this.canUndoSilence.emit(false);
   }
 
   async undo(): Promise<void> {
@@ -174,6 +188,9 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   private async mountWavesurfer(state: AudioState): Promise<void> {
     this.teardown();
     this.current = state;
+    // A new or changed buffer gets a fresh region; the old range means nothing.
+    this.rangeBeforeSilence = null;
+    this.canUndoSilence.emit(false);
     const { blob, buffer } = state;
 
     const host = this.container().nativeElement;
