@@ -131,6 +131,18 @@ mat-form-field {
   gap: 8px;
 }
 
+.silence-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  mat-form-field {
+    flex: 0 1 160px;
+  }
+}
+
 .trim-label {
   margin: 0;
   color: var(--mat-sys-tertiary);

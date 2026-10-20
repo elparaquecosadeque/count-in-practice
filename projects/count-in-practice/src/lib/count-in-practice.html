@@ -136,6 +136,32 @@
             </button>
           }
         </div>
+        <div class="silence-tools">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().silenceThresholdLabel }}</mat-label>
+            <input
+              matInput
+              type="number"
+              [ngModel]="silenceThresholdDb()"
+              (ngModelChange)="onSilenceThresholdChange($event)"
+              [disabled]="engine.transport() !== 'idle'"
+              [min]="silenceDbMin"
+              [max]="silenceDbMax"
+            />
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().silenceModeLabel }}</mat-label>
+            <mat-select [ngModel]="silenceMode()" (ngModelChange)="silenceMode.set($event)" [disabled]="engine.transport() !== 'idle'">
+              <mat-option value="both">{{ text().silenceModeBoth }}</mat-option>
+              <mat-option value="start">{{ text().silenceModeStart }}</mat-option>
+              <mat-option value="end">{{ text().silenceModeEnd }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-stroked-button [disabled]="engine.transport() !== 'idle'" (click)="trimSilence(waveformTrimmer)">
+            <mat-icon>content_cut</mat-icon>
+            {{ text().trimSilenceLabel }}
+          </button>
+        </div>
       </mat-card-content>
     </mat-card>
   } @else {

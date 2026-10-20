@@ -8,9 +8,21 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { detectBpm as detectBpmFromBuffer } from './bpm-detector';
 import { WaveformLoaded, WaveformTrimmer } from './components/waveform-trimmer/waveform-trimmer';
-import { BARS_MAX, BARS_MIN, BPM_MAX, BPM_MIN, CountInSettings, Language, TIME_SIGNATURES, TrimRange } from './models';
+import {
+  BARS_MAX,
+  BARS_MIN,
+  BPM_MAX,
+  BPM_MIN,
+  CountInSettings,
+  Language,
+  SILENCE_DB_MAX,
+  SILENCE_DB_MIN,
+  TIME_SIGNATURES,
+  TrimRange,
+} from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
 import { SettingsStorageService } from './services/settings-storage.service';
+import { SilenceTrimMode } from './silence';
 import { createTapTempoState, registerTap } from './tap-tempo';
 
 export interface CountInPracticeCopy {
@@ -34,6 +46,13 @@ export interface CountInPracticeCopy {
   end: string;
   cropLabel: string;
   undoCropLabel: string;
+  trimSilenceLabel: string;
+  silenceThresholdLabel: string;
+  silenceModeLabel: string;
+  silenceModeBoth: string;
+  silenceModeStart: string;
+  silenceModeEnd: string;
+  noSoundFound: string;
   play: string;
   pause: string;
   stop: string;
@@ -69,6 +88,13 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     end: 'End',
     cropLabel: 'Crop to selection',
     undoCropLabel: 'Undo crop',
+    trimSilenceLabel: 'Trim silence',
+    silenceThresholdLabel: 'Threshold (dB)',
+    silenceModeLabel: 'Where',
+    silenceModeBoth: 'Start and end',
+    silenceModeStart: 'Start only',
+    silenceModeEnd: 'End only',
+    noSoundFound: 'Nothing in the selection is louder than the threshold — try a lower dB value.',
     play: 'Play',
     pause: 'Pause',
     stop: 'Stop',
@@ -102,6 +128,13 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     end: 'Fin',
     cropLabel: 'Recortar a la selección',
     undoCropLabel: 'Deshacer recorte',
+    trimSilenceLabel: 'Quitar silencios',
+    silenceThresholdLabel: 'Umbral (dB)',
+    silenceModeLabel: 'Dónde',
+    silenceModeBoth: 'Inicio y final',
+    silenceModeStart: 'Solo inicio',
+    silenceModeEnd: 'Solo final',
+    noSoundFound: 'Nada en la selección supera el umbral — prueba con un valor de dB más bajo.',
     play: 'Reproducir',
     pause: 'Pausar',
     stop: 'Detener',
@@ -144,6 +177,8 @@ export class CountInPractice {
   readonly bpmMax = BPM_MAX;
   readonly barsMin = BARS_MIN;
   readonly barsMax = BARS_MAX;
+  readonly silenceDbMin = SILENCE_DB_MIN;
+  readonly silenceDbMax = SILENCE_DB_MAX;
 
   private readonly stored = this.settingsStorage.load();
   readonly bpm = signal(this.stored.bpm);
@@ -151,6 +186,8 @@ export class CountInPractice {
   readonly beatsPerMeasure = signal(this.stored.beatsPerMeasure);
   readonly preCountBars = signal(this.stored.preCountBars);
   readonly countOutBars = signal(this.stored.countOutBars);
+  readonly silenceThresholdDb = signal(this.stored.silenceThresholdDb);
+  readonly silenceMode = signal<SilenceTrimMode>('both');
 
   readonly audioFile = signal<File | null>(null);
   readonly audioBuffer = signal<AudioBuffer | null>(null);
@@ -180,7 +217,7 @@ export class CountInPractice {
         countOutBars: this.countOutBars(),
       };
       this.engine.setSettings(settings);
-      this.settingsStorage.save(settings);
+      this.settingsStorage.save({ ...settings, silenceThresholdDb: this.silenceThresholdDb() });
     });
   }
 
@@ -306,6 +343,20 @@ export class CountInPractice {
     if (target.closest('input, textarea, select, button, [contenteditable], [role="combobox"], [role="listbox"]')) return;
     event.preventDefault(); // otherwise the page scrolls
     this.togglePlayPause();
+  }
+
+  // ngModel on type="number" emits a number, or null while the field is empty
+  // or mid-edit (e.g. just "-").
+  onSilenceThresholdChange(value: number | null): void {
+    if (value === null || Number.isNaN(value)) return;
+    this.silenceThresholdDb.set(Math.min(SILENCE_DB_MAX, Math.max(SILENCE_DB_MIN, Math.round(value))));
+  }
+
+  trimSilence(trimmer: WaveformTrimmer): void {
+    this.errorMessage.set(null);
+    if (!trimmer.trimSilence(this.silenceThresholdDb(), this.silenceMode())) {
+      this.errorMessage.set(this.text().noSoundFound);
+    }
   }
 
   togglePlayPause(): void {

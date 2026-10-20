@@ -4,6 +4,7 @@ import RegionsPlugin, { Region } from 'wavesurfer.js/plugins/regions';
 import TimelinePlugin from 'wavesurfer.js/plugins/timeline';
 import ZoomPlugin from 'wavesurfer.js/plugins/zoom';
 import { cropAudioBuffer } from '../../audio-crop';
+import { SilenceTrimMode, findSoundBounds } from '../../silence';
 import { encodeWav } from '../../wav-encoder';
 import { TrimRange } from '../../models';
 
@@ -94,6 +95,24 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     this.previous = this.current;
     this.canUndo.emit(true);
     await this.mountWavesurfer({ blob, buffer: cropped });
+  }
+
+  // Non-destructive: moves the trim region's edge(s) in to the first/last
+  // sound above `thresholdDb` inside the current selection. Returns false
+  // (and changes nothing) if the whole selection is below the threshold.
+  trimSilence(thresholdDb: number, mode: SilenceTrimMode): boolean {
+    const region = this.activeRegion;
+    if (!region || !this.current) return false;
+    const { buffer } = this.current;
+    const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
+    const bounds = findSoundBounds(channels, buffer.sampleRate, region.start, region.end, thresholdDb);
+    if (!bounds) return false;
+    region.setOptions({
+      start: mode === 'end' ? region.start : bounds.start,
+      end: mode === 'start' ? region.end : bounds.end,
+    });
+    this.emitTrim();
+    return true;
   }
 
   async undo(): Promise<void> {

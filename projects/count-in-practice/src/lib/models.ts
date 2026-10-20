@@ -20,6 +20,8 @@ export const BPM_MIN = 40;
 export const BPM_MAX = 240;
 export const BARS_MIN = 0;
 export const BARS_MAX = 8;
+export const SILENCE_DB_MIN = -80;
+export const SILENCE_DB_MAX = -10;
 
 export const TIME_SIGNATURES = [
   { label: '2/4', beats: 2 },
