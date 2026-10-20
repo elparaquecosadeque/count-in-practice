@@ -170,7 +170,7 @@ export class CountInPractice {
 
   readonly audioFile = signal<File | null>(null);
   readonly audioBuffer = signal<AudioBuffer | null>(null);
-  readonly hasAudio = signal(false);
+  readonly hasAudio = computed(() => this.audioBuffer() !== null);
   readonly trimRange = signal<TrimRange>({ start: 0, end: 0 });
   readonly errorMessage = signal<string | null>(null);
 
@@ -235,7 +235,6 @@ export class CountInPractice {
 
   private handleFile(file: File): void {
     this.engine.stop();
-    this.hasAudio.set(false);
     this.audioBuffer.set(null);
     this.errorMessage.set(null);
     this.audioFile.set(file);
@@ -244,11 +243,9 @@ export class CountInPractice {
   onWaveformLoaded(loaded: WaveformLoaded): void {
     this.engine.setBuffer(loaded.buffer);
     this.audioBuffer.set(loaded.buffer);
-    this.hasAudio.set(true);
   }
 
   onWaveformError(): void {
-    this.hasAudio.set(false);
     this.audioBuffer.set(null);
     this.engine.setBuffer(null);
     this.errorMessage.set(this.text().decodeError);
