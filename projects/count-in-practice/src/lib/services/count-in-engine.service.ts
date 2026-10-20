@@ -32,6 +32,9 @@ export class CountInEngineService {
   private nextClickTime = 0;
   private scheduledAudioForCycleStart: number | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
+  // Clicks already handed to the audio thread (up to scheduleAheadTime ahead);
+  // Stop must cancel them or they still sound after the transport is idle.
+  private readonly scheduledClicks = new Set<OscillatorNode>();
   private readonly visualTimeouts = new Set<ReturnType<typeof setTimeout>>();
 
   get audioContext(): AudioContext {
@@ -100,6 +103,8 @@ export class CountInEngineService {
       }
       this.currentSource = null;
     }
+    for (const osc of this.scheduledClicks) osc.stop();
+    this.scheduledClicks.clear();
     if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
     this.phase.set('preCount');
     this.beatIndex.set(0);
@@ -158,6 +163,8 @@ export class CountInEngineService {
     osc.connect(gain).connect(ctx.destination);
     osc.start(time);
     osc.stop(time + 0.05);
+    this.scheduledClicks.add(osc);
+    osc.onended = () => this.scheduledClicks.delete(osc);
   }
 
   private playAudio(time: number): void {
