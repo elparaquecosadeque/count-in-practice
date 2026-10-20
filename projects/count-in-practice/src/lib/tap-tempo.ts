@@ -1,11 +1,11 @@
+import { BPM_MAX, BPM_MIN } from './models';
+
 export interface TapTempoState {
   tapTimes: number[];
 }
 
 const RESET_MS = 2000;
 const WINDOW = 8;
-const BPM_MIN = 40;
-const BPM_MAX = 240;
 
 export function createTapTempoState(): TapTempoState {
   return { tapTimes: [] };

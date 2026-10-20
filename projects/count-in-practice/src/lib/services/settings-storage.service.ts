@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { CountInSettings } from '../models';
+import { BARS_MAX, BARS_MIN, BPM_MAX, BPM_MIN, CountInSettings, TIME_SIGNATURES } from '../models';
 
 const STORAGE_KEY = 'count-in-practice-settings';
 
@@ -22,10 +22,12 @@ function load(): CountInSettings {
     const parsed = (raw ? JSON.parse(raw) : null) as Partial<Record<keyof CountInSettings, unknown>> | null;
     if (!parsed || typeof parsed !== 'object') return DEFAULTS;
     return {
-      bpm: intInRange(parsed.bpm, 40, 240, DEFAULTS.bpm),
-      beatsPerMeasure: intInRange(parsed.beatsPerMeasure, 2, 7, DEFAULTS.beatsPerMeasure),
-      preCountBars: intInRange(parsed.preCountBars, 0, 8, DEFAULTS.preCountBars),
-      countOutBars: intInRange(parsed.countOutBars, 0, 8, DEFAULTS.countOutBars),
+      bpm: intInRange(parsed.bpm, BPM_MIN, BPM_MAX, DEFAULTS.bpm),
+      beatsPerMeasure: TIME_SIGNATURES.some((ts) => ts.beats === parsed.beatsPerMeasure)
+        ? (parsed.beatsPerMeasure as number)
+        : DEFAULTS.beatsPerMeasure,
+      preCountBars: intInRange(parsed.preCountBars, BARS_MIN, BARS_MAX, DEFAULTS.preCountBars),
+      countOutBars: intInRange(parsed.countOutBars, BARS_MIN, BARS_MAX, DEFAULTS.countOutBars),
     };
   } catch {
     return DEFAULTS;

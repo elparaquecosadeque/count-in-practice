@@ -43,8 +43,8 @@
             (ngModelChange)="onBpmInput($event)"
             (blur)="onBpmBlur()"
             [disabled]="engine.transport() !== 'idle'"
-            min="40"
-            max="240"
+            [min]="bpmMin"
+            [max]="bpmMax"
           />
         </mat-form-field>
 
@@ -85,8 +85,8 @@
             [ngModel]="preCountBars()"
             (ngModelChange)="onPreCountChange($event)"
             [disabled]="engine.transport() !== 'idle'"
-            min="0"
-            max="8"
+            [min]="barsMin"
+            [max]="barsMax"
           />
         </mat-form-field>
 
@@ -98,8 +98,8 @@
             [ngModel]="countOutBars()"
             (ngModelChange)="onCountOutChange($event)"
             [disabled]="engine.transport() !== 'idle'"
-            min="0"
-            max="8"
+            [min]="barsMin"
+            [max]="barsMax"
           />
         </mat-form-field>
       </div>

@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { detectBpm as detectBpmFromBuffer } from './bpm-detector';
 import { WaveformLoaded, WaveformTrimmer } from './components/waveform-trimmer/waveform-trimmer';
-import { CountInSettings, Language, TrimRange } from './models';
+import { BARS_MAX, BARS_MIN, BPM_MAX, BPM_MIN, CountInSettings, Language, TIME_SIGNATURES, TrimRange } from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
 import { SettingsStorageService } from './services/settings-storage.service';
 import { createTapTempoState, registerTap } from './tap-tempo';
@@ -122,20 +122,6 @@ const COPY: Record<Language, CountInPracticeCopy> = {
   },
 };
 
-const TIME_SIGNATURES = [
-  { label: '2/4', beats: 2 },
-  { label: '3/4', beats: 3 },
-  { label: '4/4', beats: 4 },
-  { label: '5/4', beats: 5 },
-  { label: '6/8', beats: 6 },
-  { label: '7/8', beats: 7 },
-] as const;
-
-const BPM_MIN = 40;
-const BPM_MAX = 240;
-const BARS_MIN = 0;
-const BARS_MAX = 8;
-
 @Component({
   selector: 'the-chords-count-in-practice',
   imports: [
@@ -160,6 +146,10 @@ export class CountInPractice {
   readonly text = computed(() => COPY[this.language()]);
 
   readonly timeSignatures = TIME_SIGNATURES;
+  readonly bpmMin = BPM_MIN;
+  readonly bpmMax = BPM_MAX;
+  readonly barsMin = BARS_MIN;
+  readonly barsMax = BARS_MAX;
 
   private readonly stored = this.settingsStorage.load();
   readonly bpm = signal(this.stored.bpm);
