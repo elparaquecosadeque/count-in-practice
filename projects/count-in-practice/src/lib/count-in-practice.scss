@@ -312,29 +312,22 @@ mat-card {
   text-align: center;
 }
 
-// Beat display on the left, transport on the right: one bar instead of a
-// centered stack plus a separate button row.
+// Phase readout left, beats centered, transport right. The outer columns
+// share the leftover space equally so the beats sit at the card's center.
 .transport-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px 24px;
-}
-
-.beat-display {
   display: grid;
-  justify-items: start;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: 'readout beats controls';
+  align-items: center;
+  gap: 16px;
 }
 
 .transport-controls {
+  grid-area: controls;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 12px;
-  // When a long bar (7/8) pushes the controls onto their own line, keep
-  // them on the right rather than stranded on the left.
-  margin-left: auto;
 }
 
 .stop-button {
@@ -347,39 +340,95 @@ mat-card {
   }
 }
 
-.beat-dots {
+.beat-buttons {
+  grid-area: beats;
   display: flex;
-  gap: 14px;
+  gap: 6px;
 }
 
-.beat-dot {
-  width: 28px;
-  height: 28px;
-  background: var(--mat-sys-surface-container-high);
-  border: 2px solid var(--mat-sys-outline-variant);
-  border-radius: 50%;
+// Number over a mark: diamond = strong click, dot = normal, none = silent.
+.beat-button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
   transition:
-    transform 0.08s ease-out,
-    background 0.08s ease-out;
+    background 0.08s ease-out,
+    box-shadow 0.08s ease-out,
+    transform 0.08s ease-out;
 
-  &.accent {
-    width: 34px;
-    height: 34px;
+  &:hover {
+    background: var(--mat-sys-surface-container-high);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  &.strong {
+    border-color: var(--mat-sys-tertiary);
+    background: color-mix(in srgb, var(--mat-sys-tertiary) 14%, var(--mat-sys-surface-container));
+  }
+
+  &.mute {
+    color: var(--mat-sys-outline);
   }
 
   &.active {
     background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
     box-shadow: 0 0 16px color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
-    transform: scale(1.15);
+    transform: scale(1.08);
   }
 
-  &.accent.active {
+  &.strong.active {
     background: var(--mat-sys-tertiary);
+    color: var(--mat-sys-on-tertiary);
     box-shadow: 0 0 20px color-mix(in srgb, var(--mat-sys-tertiary) 65%, transparent);
+  }
+
+  // A silent beat still shows where the bar is, just without the glow.
+  &.mute.active {
+    background: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface);
+    box-shadow: none;
+  }
+}
+
+.accent-mark {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+
+  .strong & {
+    width: 6px;
+    height: 6px;
+    border-radius: 1px;
+    transform: rotate(45deg);
+    opacity: 1;
+  }
+
+  .mute & {
+    visibility: hidden;
   }
 }
 
 .phase-readout {
+  grid-area: readout;
   margin: 0;
 }
 
@@ -394,12 +443,24 @@ mat-card {
 
 .bar-beat {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--mat-sys-on-surface-variant);
   font-size: 13px;
 }
 
 @media (max-width: 480px) {
+  // Seven beats don't fit beside the readout and transport on a phone.
+  .transport-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'readout controls'
+      'beats beats';
+  }
+
+  .beat-buttons {
+    justify-self: center;
+  }
+
   .field-row {
     gap: 12px 8px;
   }

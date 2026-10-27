@@ -311,24 +311,28 @@
 
   <mat-card class="beat-card" appearance="outlined">
     <mat-card-content class="transport-bar">
-      <div class="beat-display">
-        <div class="beat-dots">
-          @for (i of beatDots(); track i) {
-            <span
-              class="beat-dot"
-              [class.accent]="i === 0"
-              [class.active]="engine.beatIndex() === i && engine.transport() === 'playing'"
-            ></span>
-          }
-        </div>
-        <p class="phase-readout">
-          <span class="phase-name">{{ phaseLabel() }}</span>
-          <span class="bar-beat">
-            {{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}
-            &middot;
-            {{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}
-          </span>
-        </p>
+      <p class="phase-readout">
+        <span class="phase-name">{{ phaseLabel() }}</span>
+        <span class="bar-beat">{{ text().bar }} {{ engine.barInPhase() }} {{ text().of }} {{ engine.barsInPhase() }}</span>
+        <span class="bar-beat">{{ text().beat }} {{ engine.beatIndex() + 1 }} {{ text().of }} {{ beatsPerMeasure() }}</span>
+      </p>
+
+      <div class="beat-buttons" role="group" [attr.aria-label]="text().accentHint">
+        @for (accent of accents(); track $index) {
+          <button
+            type="button"
+            class="beat-button"
+            [class.strong]="accent === 'strong'"
+            [class.mute]="accent === 'mute'"
+            [class.active]="engine.beatIndex() === $index && engine.transport() === 'playing'"
+            [title]="text().accentHint"
+            [attr.aria-label]="text().beat + ' ' + ($index + 1) + ': ' + accentLabel(accent)"
+            (click)="cycleAccent($index)"
+          >
+            {{ $index + 1 }}
+            <span class="accent-mark" aria-hidden="true"></span>
+          </button>
+        }
       </div>
 
       <div class="transport-controls">

@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { CountInSettings, TrimRange, TransportState } from '../models';
+import { CountInSettings, TrimRange, TransportState, defaultAccents } from '../models';
 import { CycleConfig, Phase, PhasePosition, audioStartOffset, cycleDuration, phaseAt, seekTarget } from '../scheduling';
 
 // A player outside our AudioContext (a YouTube embed) that can't be scheduled
@@ -38,7 +38,13 @@ export class CountInEngineService {
   // null while it's paused.
   private externalPlayingFor: number | null = null;
   private trim: TrimRange = { start: 0, end: 0 };
-  private settings: CountInSettings = { bpm: 100, beatsPerMeasure: 4, preCountBars: 1, countOutBars: 1 };
+  private settings: CountInSettings = {
+    bpm: 100,
+    beatsPerMeasure: 4,
+    accents: defaultAccents(4),
+    preCountBars: 1,
+    countOutBars: 1,
+  };
 
   private schedulerId: number | null = null;
   private readonly lookaheadMs = 25;
@@ -252,7 +258,8 @@ export class CountInEngineService {
       }
       const clickTime = this.cycleStartTime + tInCycle;
       const pos = phaseAt(tInCycle, config);
-      this.playClick(clickTime, pos.isAccent);
+      const accent = this.settings.accents[pos.beatIndex] ?? 'normal';
+      if (accent !== 'mute') this.playClick(clickTime, accent === 'strong');
       this.scheduleVisualUpdate(clickTime, pos);
       this.nextClickBeatIndexInCycle++;
       this.nextClickTime = this.cycleStartTime + this.nextClickBeatIndexInCycle * beatSec;

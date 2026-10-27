@@ -3,9 +3,18 @@ export interface TrimRange {
   end: number;
 }
 
+export type BeatAccent = 'strong' | 'normal' | 'mute';
+
+// Downbeat strong, the rest normal.
+export function defaultAccents(beatsPerMeasure: number): BeatAccent[] {
+  return Array.from({ length: beatsPerMeasure }, (_, i) => (i === 0 ? 'strong' : 'normal'));
+}
+
 export interface CountInSettings {
   bpm: number;
   beatsPerMeasure: number;
+  // One per beat of the bar.
+  accents: BeatAccent[];
   preCountBars: number;
   countOutBars: number;
 }

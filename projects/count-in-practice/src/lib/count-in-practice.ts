@@ -16,6 +16,7 @@ import {
   BARS_MIN,
   BPM_MAX,
   BPM_MIN,
+  BeatAccent,
   CountInSettings,
   Language,
   SILENCE_DB_MAX,
@@ -23,6 +24,7 @@ import {
   TIME_SIGNATURES,
   Theme,
   TrimRange,
+  defaultAccents,
   YOUTUBE_LEAD_MS_MAX,
   YOUTUBE_LEAD_MS_MIN,
 } from './models';
@@ -81,6 +83,10 @@ export interface CountInPracticeCopy {
   bar: string;
   beat: string;
   of: string;
+  accentStrong: string;
+  accentNormal: string;
+  accentMute: string;
+  accentHint: string;
   decodeError: string;
 }
 
@@ -134,6 +140,10 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     bar: 'Bar',
     beat: 'Beat',
     of: 'of',
+    accentStrong: 'strong',
+    accentNormal: 'normal',
+    accentMute: 'silent',
+    accentHint: 'Click to cycle: strong → normal → silent',
     decodeError: "That file couldn't be decoded — try a different MP3, WAV or M4A.",
   },
   es: {
@@ -185,6 +195,10 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     bar: 'Compás',
     beat: 'Tiempo',
     of: 'de',
+    accentStrong: 'fuerte',
+    accentNormal: 'normal',
+    accentMute: 'silencio',
+    accentHint: 'Clic para cambiar: fuerte → normal → silencio',
     decodeError: 'No se pudo decodificar ese archivo — prueba con otro MP3, WAV o M4A.',
   },
 };
@@ -236,6 +250,7 @@ export class CountInPractice {
   // way to "120") isn't clamped mid-edit; null while the field is empty.
   readonly bpmInputValue = signal<number | null>(this.stored.bpm);
   readonly beatsPerMeasure = signal(this.stored.beatsPerMeasure);
+  readonly accents = signal(this.stored.accents);
   readonly preCountBars = signal(this.stored.preCountBars);
   readonly countOutBars = signal(this.stored.countOutBars);
   readonly silenceThresholdDb = signal(this.stored.silenceThresholdDb);
@@ -268,7 +283,6 @@ export class CountInPractice {
   private tapState = createTapTempoState();
   private dragCounter = 0;
 
-  readonly beatDots = computed(() => Array.from({ length: this.beatsPerMeasure() }, (_, i) => i));
   readonly playPauseLabel = computed(() => (this.engine.transport() === 'playing' ? this.text().pause : this.text().play));
   readonly phaseLabel = computed(() => {
     const phase = this.engine.phase();
@@ -281,6 +295,7 @@ export class CountInPractice {
       const settings: CountInSettings = {
         bpm: this.bpm(),
         beatsPerMeasure: this.beatsPerMeasure(),
+        accents: this.accents(),
         preCountBars: this.preCountBars(),
         countOutBars: this.countOutBars(),
       };
@@ -450,6 +465,18 @@ export class CountInPractice {
 
   onTimeSignatureChange(value: string): void {
     this.beatsPerMeasure.set(Number(value));
+    this.accents.set(defaultAccents(Number(value)));
+  }
+
+  // Live, even while playing: the scheduler reads the pattern per click.
+  cycleAccent(index: number): void {
+    const next: Record<BeatAccent, BeatAccent> = { strong: 'normal', normal: 'mute', mute: 'strong' };
+    this.accents.update((accents) => accents.map((accent, i) => (i === index ? next[accent] : accent)));
+  }
+
+  accentLabel(accent: BeatAccent): string {
+    const text = this.text();
+    return accent === 'strong' ? text.accentStrong : accent === 'normal' ? text.accentNormal : text.accentMute;
   }
 
   onPreCountChange(value: string): void {
