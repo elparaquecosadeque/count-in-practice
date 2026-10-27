@@ -2,6 +2,16 @@ import { Injectable, signal } from '@angular/core';
 import { CountInSettings, TrimRange, TransportState } from '../models';
 import { CycleConfig, Phase, PhasePosition, audioStartOffset, cycleDuration, phaseAt, seekTarget } from '../scheduling';
 
+// A player outside our AudioContext (a YouTube embed) that can't be scheduled
+// sample-accurately: the engine seeks and starts it from the per-frame loop.
+export interface ExternalAudio {
+  // Seek to `position` seconds into the media and play from there.
+  play(position: number): void;
+  pause(): void;
+  // Pause at `position` so it's buffered before play() asks for it.
+  cue(position: number): void;
+}
+
 // Shared Web Audio lookahead-scheduler clock (classic Chris Wilson pattern), same
 // technique as the-chords' own navbar metronome, extended to also trigger the
 // trimmed audio buffer at the right point in each cycle. The click grid runs
@@ -21,6 +31,12 @@ export class CountInEngineService {
 
   private audioCtx: AudioContext | null = null;
   private buffer: AudioBuffer | null = null;
+  private external: ExternalAudio | null = null;
+  // Seconds the external player is started early to cover its start-up delay.
+  private externalLead = 0;
+  // audioStartedAt of the lap the external player is currently playing, or
+  // null while it's paused.
+  private externalPlayingFor: number | null = null;
   private trim: TrimRange = { start: 0, end: 0 };
   private settings: CountInSettings = { bpm: 100, beatsPerMeasure: 4, preCountBars: 1, countOutBars: 1 };
 
@@ -39,7 +55,7 @@ export class CountInEngineService {
   // Stop must cancel them or they still sound after the transport is idle.
   private readonly scheduledClicks = new Set<OscillatorNode>();
   private readonly visualTimeouts = new Set<ReturnType<typeof setTimeout>>();
-  private audioStartedAt = 0;
+  private audioStartedAt = Infinity;
   private cursorFrameId: number | null = null;
 
   get audioContext(): AudioContext {
@@ -49,6 +65,19 @@ export class CountInEngineService {
 
   setBuffer(buffer: AudioBuffer | null): void {
     this.buffer = buffer;
+  }
+
+  setExternal(external: ExternalAudio | null): void {
+    this.external = external;
+    this.externalPlayingFor = null;
+  }
+
+  setExternalLead(seconds: number): void {
+    this.externalLead = seconds;
+  }
+
+  private get hasSource(): boolean {
+    return this.buffer !== null || this.external !== null;
   }
 
   setTrim(trim: TrimRange): void {
@@ -61,7 +90,7 @@ export class CountInEngineService {
   }
 
   private get config(): CycleConfig {
-    const audioDuration = this.buffer ? Math.max(0, this.trim.end - this.trim.start) : 0;
+    const audioDuration = this.hasSource ? Math.max(0, this.trim.end - this.trim.start) : 0;
     return {
       bpm: this.settings.bpm,
       beatsPerMeasure: this.settings.beatsPerMeasure,
@@ -72,7 +101,7 @@ export class CountInEngineService {
   }
 
   start(): void {
-    if (!this.buffer) return;
+    if (!this.hasSource) return;
     const ctx = this.audioContext;
     if (this.transport() === 'paused') {
       // audioCtx.resume() continues every already-scheduled time (clicks, the
@@ -84,6 +113,9 @@ export class CountInEngineService {
       return;
     }
     if (ctx.state === 'suspended') ctx.resume();
+    // Buffers the trim start during Pre-Count (and stops the video if the
+    // user was browsing it on its own).
+    this.external?.cue(this.trim.start);
     this.cycleStartTime = ctx.currentTime;
     this.nextClickBeatIndexInCycle = 0;
     this.nextClickTime = this.cycleStartTime;
@@ -97,7 +129,7 @@ export class CountInEngineService {
   // waveform) while playing or paused. Re-anchors the current cycle so that
   // moment is "now", keeping the click grid aligned with the audio.
   seek(bufferTime: number): void {
-    if (this.transport() === 'idle' || !this.buffer) return;
+    if (this.transport() === 'idle' || !this.hasSource) return;
     const config = this.config;
     if (config.audioDuration <= 0) return;
     const ctx = this.audioContext;
@@ -123,12 +155,15 @@ export class CountInEngineService {
     this.transport.set('paused');
     this.clearScheduler();
     this.audioContext.suspend();
+    this.pauseExternal();
   }
 
   stop(): void {
     this.transport.set('idle');
     this.clearScheduler();
     this.cancelScheduledSound();
+    this.pauseExternal();
+    this.audioStartedAt = Infinity;
     if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
     this.phase.set('preCount');
     this.beatIndex.set(0);
@@ -151,6 +186,28 @@ export class CountInEngineService {
     this.scheduledClicks.clear();
   }
 
+  private pauseExternal(): void {
+    if (this.externalPlayingFor === null) return;
+    this.externalPlayingFor = null;
+    this.external?.pause();
+  }
+
+  // Plays the external player while the lap's audio slot is on (started
+  // externalLead early), pauses it outside. A new lap or a seek changes
+  // audioStartedAt, which re-seeks it.
+  private syncExternal(): void {
+    if (!this.external) return;
+    const elapsed = this.audioContext.currentTime - this.audioStartedAt;
+    const duration = Math.max(0, this.trim.end - this.trim.start);
+    const shouldPlay = elapsed + this.externalLead >= 0 && elapsed < duration;
+    if (shouldPlay && this.externalPlayingFor !== this.audioStartedAt) {
+      this.externalPlayingFor = this.audioStartedAt;
+      this.external.play(this.trim.start + Math.max(0, elapsed + this.externalLead));
+    } else if (!shouldPlay) {
+      this.pauseExternal();
+    }
+  }
+
   private clearScheduler(): void {
     if (this.schedulerId !== null) {
       window.clearInterval(this.schedulerId);
@@ -171,6 +228,7 @@ export class CountInEngineService {
       const duration = Math.max(0, this.trim.end - this.trim.start);
       const elapsed = this.phase() === 'preCount' ? 0 : this.audioContext.currentTime - this.audioStartedAt;
       this.cursorTime.set(this.trim.start + Math.min(duration, Math.max(0, elapsed)));
+      this.syncExternal();
       this.cursorFrameId = requestAnimationFrame(tick);
     };
     this.cursorFrameId = requestAnimationFrame(tick);
@@ -222,9 +280,10 @@ export class CountInEngineService {
   }
 
   private playAudio(time: number, offset = 0): void {
-    if (!this.buffer) return;
-    const duration = Math.max(0, this.trim.end - this.trim.start);
     this.audioStartedAt = time - offset;
+    // External players are started by syncExternal() from the frame loop.
+    if (!this.buffer || this.external) return;
+    const duration = Math.max(0, this.trim.end - this.trim.start);
     if (duration - offset <= 0) return;
     const ctx = this.audioContext;
     const source = ctx.createBufferSource();

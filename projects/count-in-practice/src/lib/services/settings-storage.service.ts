@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
-import { BARS_MAX, BARS_MIN, BPM_MAX, BPM_MIN, CountInSettings, SILENCE_DB_MAX, SILENCE_DB_MIN, TIME_SIGNATURES } from '../models';
+import { BARS_MAX, BARS_MIN, BPM_MAX, BPM_MIN, CountInSettings, SILENCE_DB_MAX, SILENCE_DB_MIN, TIME_SIGNATURES, YOUTUBE_LEAD_MS_MAX, YOUTUBE_LEAD_MS_MIN } from '../models';
 
 // Engine settings plus UI-only preferences that are worth remembering.
 export interface StoredSettings extends CountInSettings {
   silenceThresholdDb: number;
+  youtubeLeadMs: number;
 }
 
 const STORAGE_KEY = 'count-in-practice-settings';
@@ -14,6 +15,7 @@ const DEFAULTS: StoredSettings = {
   preCountBars: 1,
   countOutBars: 1,
   silenceThresholdDb: -40,
+  youtubeLeadMs: 100,
 };
 
 // Stored data is untrusted (older versions, hand edits): any field that isn't
@@ -35,6 +37,7 @@ function load(): StoredSettings {
       preCountBars: intInRange(parsed.preCountBars, BARS_MIN, BARS_MAX, DEFAULTS.preCountBars),
       countOutBars: intInRange(parsed.countOutBars, BARS_MIN, BARS_MAX, DEFAULTS.countOutBars),
       silenceThresholdDb: intInRange(parsed.silenceThresholdDb, SILENCE_DB_MIN, SILENCE_DB_MAX, DEFAULTS.silenceThresholdDb),
+      youtubeLeadMs: intInRange(parsed.youtubeLeadMs, YOUTUBE_LEAD_MS_MIN, YOUTUBE_LEAD_MS_MAX, DEFAULTS.youtubeLeadMs),
     };
   } catch {
     return DEFAULTS;

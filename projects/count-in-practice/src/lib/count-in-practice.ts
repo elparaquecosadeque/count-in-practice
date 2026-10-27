@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,7 +9,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { detectBpm as detectBpmFromBuffer } from './bpm-detector';
 import { WaveformLoaded, WaveformTrimmer } from './components/waveform-trimmer/waveform-trimmer';
+import { YoutubePlayer } from './components/youtube-player/youtube-player';
 import {
+  AudioSource,
   BARS_MAX,
   BARS_MIN,
   BPM_MAX,
@@ -20,11 +23,14 @@ import {
   TIME_SIGNATURES,
   Theme,
   TrimRange,
+  YOUTUBE_LEAD_MS_MAX,
+  YOUTUBE_LEAD_MS_MIN,
 } from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
 import { SettingsStorageService } from './services/settings-storage.service';
 import { SilenceTrimMode } from './silence';
 import { createTapTempoState, registerTap } from './tap-tempo';
+import { parseYouTubeId } from './youtube';
 
 export interface CountInPracticeCopy {
   title: string;
@@ -44,7 +50,15 @@ export interface CountInPracticeCopy {
   preCountLabel: string;
   countOutLabel: string;
   barsUnit: string;
-  trimLabel: string;
+  sourceFile: string;
+  sourceYoutube: string;
+  youtubeUrlLabel: string;
+  loadVideoLabel: string;
+  youtubeUrlError: string;
+  youtubeLoadError: string;
+  useCurrentTime: string;
+  youtubeLeadLabel: string;
+  youtubeLeadHint: string;
   start: string;
   end: string;
   cropLabel: string;
@@ -89,7 +103,15 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     preCountLabel: 'Pre-count',
     countOutLabel: 'Count-out',
     barsUnit: 'bars',
-    trimLabel: 'Trim',
+    sourceFile: 'File',
+    sourceYoutube: 'YouTube',
+    youtubeUrlLabel: 'YouTube link',
+    loadVideoLabel: 'Load',
+    youtubeUrlError: "That doesn't look like a YouTube link.",
+    youtubeLoadError: "That video can't be played here — it may be private, removed, or have embedding turned off.",
+    useCurrentTime: "Use the video's current time",
+    youtubeLeadLabel: 'Video lead (ms)',
+    youtubeLeadHint: "The video is started this early to make up for YouTube's delay. Raise it if the video comes in late after the count-in.",
     start: 'Start',
     end: 'End',
     cropLabel: 'Crop to selection',
@@ -132,7 +154,15 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     preCountLabel: 'Pre-count',
     countOutLabel: 'Count-out',
     barsUnit: 'compases',
-    trimLabel: 'Recorte',
+    sourceFile: 'Archivo',
+    sourceYoutube: 'YouTube',
+    youtubeUrlLabel: 'Link de YouTube',
+    loadVideoLabel: 'Cargar',
+    youtubeUrlError: 'Ese link no parece de YouTube.',
+    youtubeLoadError: 'Ese video no se puede reproducir aquí — puede ser privado, haber sido eliminado o tener desactivada la inserción.',
+    useCurrentTime: 'Usar el tiempo actual del video',
+    youtubeLeadLabel: 'Adelanto (ms)',
+    youtubeLeadHint: 'El video arranca con este adelanto para compensar la demora de YouTube. Súbelo si el video entra tarde después del count-in.',
     start: 'Inicio',
     end: 'Fin',
     cropLabel: 'Recortar a la selección',
@@ -164,7 +194,9 @@ const COPY: Record<Language, CountInPracticeCopy> = {
   imports: [
     FormsModule,
     WaveformTrimmer,
+    YoutubePlayer,
     MatButtonModule,
+    MatButtonToggleModule,
     MatCardModule,
     MatFormFieldModule,
     MatIconModule,
@@ -194,6 +226,9 @@ export class CountInPractice {
   readonly barsMax = BARS_MAX;
   readonly silenceDbMin = SILENCE_DB_MIN;
   readonly silenceDbMax = SILENCE_DB_MAX;
+  readonly youtubeLeadMsMin = YOUTUBE_LEAD_MS_MIN;
+  readonly youtubeLeadMsMax = YOUTUBE_LEAD_MS_MAX;
+  readonly youtubeEdges = ['start', 'end'] as const;
 
   private readonly stored = this.settingsStorage.load();
   readonly bpm = signal(this.stored.bpm);
@@ -205,10 +240,23 @@ export class CountInPractice {
   readonly countOutBars = signal(this.stored.countOutBars);
   readonly silenceThresholdDb = signal(this.stored.silenceThresholdDb);
   readonly silenceMode = signal<SilenceTrimMode>('both');
+  readonly youtubeLeadMs = signal(this.stored.youtubeLeadMs);
+
+  readonly source = signal<AudioSource>('file');
+  readonly youtubeUrl = signal('');
+  readonly youtubeVideoId = signal<string | null>(null);
+  readonly youtubeDuration = signal<number | null>(null); // null until the player is ready
+  readonly youtubeRange = signal<TrimRange>({ start: 0, end: 0 });
+  readonly youtubeError = signal<string | null>(null);
+  private youtubePlayer: YoutubePlayer | null = null;
 
   readonly audioFile = signal<File | null>(null);
   readonly audioBuffer = signal<AudioBuffer | null>(null);
-  readonly hasAudio = computed(() => this.audioBuffer() !== null);
+  readonly hasAudio = computed(() =>
+    this.source() === 'youtube'
+      ? this.youtubeDuration() !== null && this.youtubeRange().end > this.youtubeRange().start
+      : this.audioBuffer() !== null,
+  );
   readonly trimRange = signal<TrimRange>({ start: 0, end: 0 });
   readonly errorMessage = signal<string | null>(null);
 
@@ -237,8 +285,71 @@ export class CountInPractice {
         countOutBars: this.countOutBars(),
       };
       this.engine.setSettings(settings);
-      this.settingsStorage.save({ ...settings, silenceThresholdDb: this.silenceThresholdDb() });
+      this.engine.setExternalLead(this.youtubeLeadMs() / 1000);
+      this.settingsStorage.save({ ...settings, silenceThresholdDb: this.silenceThresholdDb(), youtubeLeadMs: this.youtubeLeadMs() });
     });
+  }
+
+  // Leaving a source unmounts its view; the file's trimmer re-decodes and
+  // re-emits loaded/trimChange when it comes back, the YouTube player re-emits ready.
+  setSource(source: AudioSource): void {
+    this.engine.stop();
+    this.engine.setBuffer(null);
+    this.engine.setExternal(null);
+    this.audioBuffer.set(null);
+    this.youtubeDuration.set(null);
+    this.youtubePlayer = null;
+    this.errorMessage.set(null);
+    this.source.set(source);
+  }
+
+  loadYoutube(): void {
+    const id = parseYouTubeId(this.youtubeUrl());
+    this.youtubeError.set(id ? null : this.text().youtubeUrlError);
+    if (!id || id === this.youtubeVideoId()) return;
+    this.engine.stop();
+    this.engine.setExternal(null);
+    this.youtubePlayer = null;
+    this.youtubeDuration.set(null);
+    this.youtubeRange.set({ start: 0, end: 0 });
+    this.youtubeVideoId.set(id);
+  }
+
+  onYoutubeReady(player: YoutubePlayer, duration: number): void {
+    this.youtubePlayer = player;
+    this.youtubeDuration.set(duration);
+    // Keep the range when the same video remounts (switching sources and back).
+    if (this.youtubeRange().end === 0) this.youtubeRange.set({ start: 0, end: duration });
+    this.engine.setExternal(player);
+    this.engine.setTrim(this.youtubeRange());
+  }
+
+  onYoutubeError(): void {
+    this.youtubeDuration.set(null);
+    this.youtubeError.set(this.text().youtubeLoadError);
+  }
+
+  // ngModel on type="number" emits null while the field is empty or mid-edit.
+  onYoutubeRangeInput(edge: keyof TrimRange, value: number | null): void {
+    if (value === null || Number.isNaN(value)) return;
+    this.setYoutubeEdge(edge, value);
+  }
+
+  useYoutubeTime(edge: keyof TrimRange): void {
+    if (this.youtubePlayer) this.setYoutubeEdge(edge, this.youtubePlayer.currentTime());
+  }
+
+  // Seconds rounded to centiseconds; YouTube reports 0 for durations it doesn't know yet.
+  private setYoutubeEdge(edge: keyof TrimRange, value: number): void {
+    const max = this.youtubeDuration() || Infinity;
+    const range = { ...this.youtubeRange(), [edge]: Math.round(Math.min(max, Math.max(0, value)) * 100) / 100 };
+    this.youtubeRange.set(range);
+    this.engine.setTrim(range);
+  }
+
+  onYoutubeLeadChange(value: number | null): void {
+    if (value === null || Number.isNaN(value)) return;
+    this.youtubeLeadMs.set(Math.min(YOUTUBE_LEAD_MS_MAX, Math.max(YOUTUBE_LEAD_MS_MIN, Math.round(value))));
   }
 
   onFileSelected(event: Event): void {
@@ -274,6 +385,7 @@ export class CountInPractice {
   }
 
   private handleFile(file: File): void {
+    if (this.source() !== 'file') this.setSource('file');
     this.engine.stop();
     this.audioBuffer.set(null);
     this.errorMessage.set(null);

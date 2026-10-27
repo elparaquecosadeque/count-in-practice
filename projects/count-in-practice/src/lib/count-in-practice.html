@@ -29,7 +29,7 @@
           <button
             type="button"
             mat-stroked-button
-            [disabled]="!hasAudio() || detectingBpm() || engine.transport() !== 'idle'"
+            [disabled]="!audioBuffer() || detectingBpm() || engine.transport() !== 'idle'"
             (click)="detectBpm()"
           >
             <mat-icon>graphic_eq</mat-icon>
@@ -94,10 +94,19 @@
     (drop)="onDrop($event)"
   >
     <input #fileInput type="file" accept="audio/*" hidden (change)="onFileSelected($event)" />
-    @if (audioFile()) {
-      <mat-card-content>
-        <div class="trim-header">
-          <p class="trim-label">{{ text().trimLabel }}</p>
+    <mat-card-content>
+      <div class="trim-header">
+        <mat-button-toggle-group
+          class="source-toggle"
+          hideSingleSelectionIndicator
+          [value]="source()"
+          (change)="setSource($event.value)"
+          [disabled]="engine.transport() !== 'idle'"
+        >
+          <mat-button-toggle value="file"><mat-icon>audio_file</mat-icon> {{ text().sourceFile }}</mat-button-toggle>
+          <mat-button-toggle value="youtube"><mat-icon>smart_display</mat-icon> {{ text().sourceYoutube }}</mat-button-toggle>
+        </mat-button-toggle-group>
+        @if (source() === 'file' && audioFile()) {
           <button
             type="button"
             mat-icon-button
@@ -109,7 +118,81 @@
           >
             <mat-icon>swap_horiz</mat-icon>
           </button>
+        }
+      </div>
+      @if (source() === 'youtube') {
+        <div class="youtube-load">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().youtubeUrlLabel }}</mat-label>
+            <input
+              matInput
+              type="url"
+              placeholder="https://youtu.be/…"
+              [ngModel]="youtubeUrl()"
+              (ngModelChange)="youtubeUrl.set($event)"
+              (keydown.enter)="loadYoutube()"
+              [disabled]="engine.transport() !== 'idle'"
+            />
+          </mat-form-field>
+          <button type="button" mat-flat-button [disabled]="engine.transport() !== 'idle'" (click)="loadYoutube()">
+            {{ text().loadVideoLabel }}
+          </button>
         </div>
+        @if (youtubeError(); as message) {
+          <p class="error-text" role="alert">{{ message }}</p>
+        }
+        @if (youtubeVideoId(); as videoId) {
+          <the-chords-youtube-player
+            #youtubePlayer
+            [videoId]="videoId"
+            (ready)="onYoutubeReady(youtubePlayer, $event)"
+            (loadError)="onYoutubeError()"
+          />
+          @if (youtubeDuration() !== null) {
+            <div class="youtube-range">
+              @for (edge of youtubeEdges; track edge) {
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ edge === 'start' ? text().start : text().end }} (s)</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    [ngModel]="youtubeRange()[edge]"
+                    (ngModelChange)="onYoutubeRangeInput(edge, $event)"
+                    [disabled]="engine.transport() !== 'idle'"
+                  />
+                  <button
+                    matIconSuffix
+                    type="button"
+                    mat-icon-button
+                    [title]="text().useCurrentTime"
+                    [attr.aria-label]="text().useCurrentTime"
+                    [disabled]="engine.transport() !== 'idle'"
+                    (click)="useYoutubeTime(edge)"
+                  >
+                    <mat-icon>my_location</mat-icon>
+                  </button>
+                </mat-form-field>
+              }
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>{{ text().youtubeLeadLabel }}</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="10"
+                  [ngModel]="youtubeLeadMs()"
+                  (ngModelChange)="onYoutubeLeadChange($event)"
+                  [disabled]="engine.transport() !== 'idle'"
+                  [min]="youtubeLeadMsMin"
+                  [max]="youtubeLeadMsMax"
+                />
+              </mat-form-field>
+            </div>
+            <p class="dropzone-hint">{{ text().youtubeLeadHint }}</p>
+          }
+        }
+      } @else if (audioFile()) {
         <the-chords-waveform-trimmer
           #waveformTrimmer
           [file]="audioFile()"
@@ -208,15 +291,7 @@
             }
           </div>
         </div>
-      </mat-card-content>
-      @if (isDraggingFile()) {
-        <div class="drop-overlay" aria-hidden="true">
-          <mat-icon>swap_horiz</mat-icon>
-          <span>{{ text().dropReplaceHint }}</span>
-        </div>
-      }
-    } @else {
-      <mat-card-content>
+      } @else {
         <div class="dropzone" [class.dragging]="isDraggingFile()">
           <mat-icon>upload_file</mat-icon>
           <button type="button" mat-flat-button (click)="fileInput.click()">{{ text().uploadLabel }}</button>
@@ -224,7 +299,13 @@
             {{ isDraggingFile() ? text().dropActiveHint : text().uploadHint + ' — ' + text().dropHint }}
           </p>
         </div>
-      </mat-card-content>
+      }
+    </mat-card-content>
+    @if (source() === 'file' && audioFile() && isDraggingFile()) {
+      <div class="drop-overlay" aria-hidden="true">
+        <mat-icon>swap_horiz</mat-icon>
+        <span>{{ text().dropReplaceHint }}</span>
+      </div>
     }
   </mat-card>
 

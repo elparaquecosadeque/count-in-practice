@@ -149,6 +149,31 @@ mat-card {
   margin: -8px -8px 0 0;
 }
 
+// Same 40px as the replace button beside it.
+.source-toggle {
+  @include mat.button-toggle-density(-2);
+}
+
+.youtube-load {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  @include mat.form-field-density(-2);
+
+  mat-form-field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.youtube-range {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+  @include mat.form-field-density(-2);
+}
+
 .replace-button:not(:disabled) {
   color: var(--mat-sys-primary);
 }
@@ -280,15 +305,6 @@ mat-card {
   font-size: 12px;
 }
 
-.trim-label {
-  margin: 0;
-  color: var(--mat-sys-tertiary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .trim-readout {
   margin: 0 0 4px;
   color: var(--mat-sys-on-surface-variant);
@@ -411,6 +427,15 @@ mat-card {
   .bpm-tools mat-icon,
   .bars-unit {
     display: none;
+  }
+
+  .youtube-range {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 8px;
+
+    > :last-child {
+      grid-column: 1 / -1;
+    }
   }
 
   .tool-row--silence {
