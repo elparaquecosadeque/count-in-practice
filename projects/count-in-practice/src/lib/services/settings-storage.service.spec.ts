@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { SettingsStorageService, StoredSettings } from './settings-storage.service';
 
 const KEY = 'count-in-practice-settings';
-const DEFAULTS = { bpm: 100, beatsPerMeasure: 4, accents: ['strong', 'normal', 'normal', 'normal'], preCountBars: 1, countOutBars: 1, silenceThresholdDb: -40, youtubeLeadMs: 100 };
+const DEFAULTS = { bpm: 100, beatsPerMeasure: 4, accents: ['strong', 'normal', 'normal', 'normal'], preCountBars: 1, countOutBars: 1, silenceThresholdDb: -40, youtubeLeadMs: 100,
+  source: 'file', youtubeUrl: '', youtubeRange: { start: 0, end: 0 } };
 
 describe('SettingsStorageService', () => {
   const service = new SettingsStorageService();
@@ -10,13 +11,15 @@ describe('SettingsStorageService', () => {
   beforeEach(() => localStorage.clear());
 
   it('round-trips valid settings', () => {
-    const settings: StoredSettings = { bpm: 132, beatsPerMeasure: 3, accents: ['strong', 'mute', 'normal'], preCountBars: 2, countOutBars: 0, silenceThresholdDb: -55, youtubeLeadMs: 250 };
+    const settings: StoredSettings = { bpm: 132, beatsPerMeasure: 3, accents: ['strong', 'mute', 'normal'], preCountBars: 2, countOutBars: 0, silenceThresholdDb: -55, youtubeLeadMs: 250,
+      source: 'youtube', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ', youtubeRange: { start: 43, end: 47.5 } };
     service.save(settings);
     expect(service.load()).toEqual(settings);
   });
 
   it('falls back per field for out-of-range or wrong-typed values', () => {
-    localStorage.setItem(KEY, JSON.stringify({ bpm: 999, beatsPerMeasure: '4', preCountBars: 1.5, countOutBars: 3, silenceThresholdDb: 0, youtubeLeadMs: -5 }));
+    localStorage.setItem(KEY, JSON.stringify({ bpm: 999, beatsPerMeasure: '4', preCountBars: 1.5, countOutBars: 3, silenceThresholdDb: 0, youtubeLeadMs: -5,
+      source: 'vimeo', youtubeUrl: 42, youtubeRange: { start: 5, end: 2 } }));
     expect(service.load()).toEqual({ ...DEFAULTS, countOutBars: 3 });
   });
 

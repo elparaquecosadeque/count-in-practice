@@ -1,0 +1,134 @@
+@use '@angular/material' as mat;
+@use '../../styles/theme-colors' as theme;
+
+:host {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: dark,
+        primary: theme.$primary-palette,
+        tertiary: theme.$tertiary-palette,
+      ),
+    )
+  );
+
+  display: block;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+:host([data-theme='light']) {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: theme.$primary-palette,
+        tertiary: theme.$tertiary-palette,
+      ),
+    )
+  );
+}
+
+.frame {
+  box-sizing: border-box;
+
+  the-chords-youtube-player {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.slot {
+  position: absolute;
+  z-index: 1;
+}
+
+// Kept rendered at a real size: YouTube may refuse to play a 0×0 or hidden embed.
+.hidden {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 356px;
+  height: 200px;
+}
+
+// 356×200: 16:9 at YouTube's 200px minimum embed height.
+.mini {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: grid;
+  width: 356px;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 14px;
+  background: var(--mat-sys-surface-container-high);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  the-chords-youtube-player {
+    height: 200px;
+    border-radius: 0;
+  }
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 12px;
+  color: var(--mat-sys-on-surface);
+}
+
+.readout {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 6px 0 0;
+}
+
+.phase {
+  color: var(--mat-sys-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.range {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-highest);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 1px;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}

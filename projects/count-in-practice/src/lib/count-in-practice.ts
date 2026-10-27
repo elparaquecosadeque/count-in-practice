@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, computed, effect, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -17,7 +17,6 @@ import {
   BPM_MAX,
   BPM_MIN,
   BeatAccent,
-  CountInSettings,
   Language,
   SILENCE_DB_MAX,
   SILENCE_DB_MIN,
@@ -29,10 +28,8 @@ import {
   YOUTUBE_LEAD_MS_MIN,
 } from './models';
 import { CountInEngineService } from './services/count-in-engine.service';
-import { SettingsStorageService } from './services/settings-storage.service';
-import { SilenceTrimMode } from './silence';
+import { CountInStore } from './services/count-in-store.service';
 import { createTapTempoState, registerTap } from './tap-tempo';
-import { parseYouTubeId } from './youtube';
 
 export interface CountInPracticeCopy {
   title: string;
@@ -225,12 +222,14 @@ const COPY: Record<Language, CountInPracticeCopy> = {
     '(document:keydown.space)': 'onSpaceKey($event)',
   },
 })
-export class CountInPractice {
-  private readonly settingsStorage = inject(SettingsStorageService);
+export class CountInPractice implements OnDestroy {
   readonly engine = inject(CountInEngineService);
+  readonly store = inject(CountInStore);
 
   readonly language = input<Language>('en');
   readonly theme = input<Theme>('dark');
+  // False when the host page shows its own title above this component.
+  readonly showHeader = input(true);
   readonly text = computed(() => COPY[this.language()]);
 
   readonly timeSignatures = TIME_SIGNATURES;
@@ -244,44 +243,48 @@ export class CountInPractice {
   readonly youtubeLeadMsMax = YOUTUBE_LEAD_MS_MAX;
   readonly youtubeEdges = ['start', 'end'] as const;
 
-  private readonly stored = this.settingsStorage.load();
-  readonly bpm = signal(this.stored.bpm);
+  // State lives in the root store so it outlives this view (see CountInStore).
+  readonly bpm = this.store.bpm;
   // Raw field value, kept apart from `bpm` so a half-typed number ("1" on the
-  // way to "120") isn't clamped mid-edit; null while the field is empty.
-  readonly bpmInputValue = signal<number | null>(this.stored.bpm);
-  readonly beatsPerMeasure = signal(this.stored.beatsPerMeasure);
-  readonly accents = signal(this.stored.accents);
-  readonly preCountBars = signal(this.stored.preCountBars);
-  readonly countOutBars = signal(this.stored.countOutBars);
-  readonly silenceThresholdDb = signal(this.stored.silenceThresholdDb);
-  readonly silenceMode = signal<SilenceTrimMode>('both');
-  readonly youtubeLeadMs = signal(this.stored.youtubeLeadMs);
+  // way to "120") isn't clamped mid-edit; null while the field is empty. Follows
+  // `bpm` whenever that changes, also from outside (a host's metronome).
+  readonly bpmInputValue = linkedSignal<number | null>(() => this.bpm());
+  readonly beatsPerMeasure = this.store.beatsPerMeasure;
+  readonly accents = this.store.accents;
+  readonly preCountBars = this.store.preCountBars;
+  readonly countOutBars = this.store.countOutBars;
+  readonly silenceThresholdDb = this.store.silenceThresholdDb;
+  readonly silenceMode = this.store.silenceMode;
+  readonly youtubeLeadMs = this.store.youtubeLeadMs;
 
-  readonly source = signal<AudioSource>('file');
-  readonly youtubeUrl = signal('');
-  readonly youtubeVideoId = signal<string | null>(null);
-  readonly youtubeDuration = signal<number | null>(null); // null until the player is ready
-  readonly youtubeRange = signal<TrimRange>({ start: 0, end: 0 });
-  readonly youtubeError = signal<string | null>(null);
-  private youtubePlayer: YoutubePlayer | null = null;
+  readonly source = this.store.source;
+  readonly youtubeUrl = this.store.youtubeUrl;
+  readonly youtubeVideoId = this.store.youtubeVideoId;
+  readonly youtubeDuration = this.store.youtubeDuration;
+  readonly youtubeRange = this.store.youtubeRange;
+  readonly youtubeError = this.store.youtubeError;
 
-  readonly audioFile = signal<File | null>(null);
-  readonly audioBuffer = signal<AudioBuffer | null>(null);
+  readonly audioFile = this.store.audioFile;
+  readonly audioBuffer = this.store.audioBuffer;
   readonly hasAudio = computed(() =>
     this.source() === 'youtube'
       ? this.youtubeDuration() !== null && this.youtubeRange().end > this.youtubeRange().start
       : this.audioBuffer() !== null,
   );
-  readonly trimRange = signal<TrimRange>({ start: 0, end: 0 });
+  readonly trimRange = this.store.trimRange;
+  readonly canUndoCrop = this.store.canUndoCrop;
+  readonly canUndoSilence = this.store.canUndoSilence;
   readonly errorMessage = signal<string | null>(null);
 
   readonly detectingBpm = signal(false);
   readonly isDraggingFile = signal(false);
-  readonly canUndoCrop = signal(false);
-  readonly canUndoSilence = signal(false);
   readonly silenceMessage = signal<string | null>(null);
   private tapState = createTapTempoState();
   private dragCounter = 0;
+
+  // With a CountInYoutubeHost in the app shell, the player lives there and is
+  // placed over this empty slot, so it survives leaving the page.
+  private readonly youtubeSlot = viewChild<ElementRef<HTMLElement>>('youtubeSlot');
 
   readonly playPauseLabel = computed(() => (this.engine.transport() === 'playing' ? this.text().pause : this.text().play));
   readonly phaseLabel = computed(() => {
@@ -291,75 +294,41 @@ export class CountInPractice {
   });
 
   constructor() {
-    effect(() => {
-      const settings: CountInSettings = {
-        bpm: this.bpm(),
-        beatsPerMeasure: this.beatsPerMeasure(),
-        accents: this.accents(),
-        preCountBars: this.preCountBars(),
-        countOutBars: this.countOutBars(),
-      };
-      this.engine.setSettings(settings);
-      this.engine.setExternalLead(this.youtubeLeadMs() / 1000);
-      this.settingsStorage.save({ ...settings, silenceThresholdDb: this.silenceThresholdDb(), youtubeLeadMs: this.youtubeLeadMs() });
-    });
+    effect(() => this.store.youtubeSlot.set(this.youtubeSlot()?.nativeElement ?? null));
   }
 
-  // Leaving a source unmounts its view; the file's trimmer re-decodes and
-  // re-emits loaded/trimChange when it comes back, the YouTube player re-emits ready.
+  ngOnDestroy(): void {
+    this.store.youtubeSlot.set(null);
+    // An inline player goes away with this view; the loop can't keep driving it.
+    if (this.source() === 'youtube' && !this.store.hostPresent()) this.engine.stop();
+  }
+
   setSource(source: AudioSource): void {
-    this.engine.stop();
-    this.engine.setBuffer(null);
-    this.engine.setExternal(null);
-    this.audioBuffer.set(null);
-    this.youtubeDuration.set(null);
-    this.youtubePlayer = null;
     this.errorMessage.set(null);
-    this.source.set(source);
+    this.store.setSource(source);
   }
 
   loadYoutube(): void {
-    const id = parseYouTubeId(this.youtubeUrl());
-    this.youtubeError.set(id ? null : this.text().youtubeUrlError);
-    if (!id || id === this.youtubeVideoId()) return;
-    this.engine.stop();
-    this.engine.setExternal(null);
-    this.youtubePlayer = null;
-    this.youtubeDuration.set(null);
-    this.youtubeRange.set({ start: 0, end: 0 });
-    this.youtubeVideoId.set(id);
+    if (!this.store.loadYoutube(this.youtubeUrl())) this.youtubeError.set(this.text().youtubeUrlError);
   }
 
   onYoutubeReady(player: YoutubePlayer, duration: number): void {
-    this.youtubePlayer = player;
-    this.youtubeDuration.set(duration);
-    // Keep the range when the same video remounts (switching sources and back).
-    if (this.youtubeRange().end === 0) this.youtubeRange.set({ start: 0, end: duration });
-    this.engine.setExternal(player);
-    this.engine.setTrim(this.youtubeRange());
+    this.store.onYoutubeReady(player, duration);
   }
 
   onYoutubeError(): void {
-    this.youtubeDuration.set(null);
-    this.youtubeError.set(this.text().youtubeLoadError);
+    this.store.onYoutubeError(this.text().youtubeLoadError);
   }
 
   // ngModel on type="number" emits null while the field is empty or mid-edit.
   onYoutubeRangeInput(edge: keyof TrimRange, value: number | null): void {
     if (value === null || Number.isNaN(value)) return;
-    this.setYoutubeEdge(edge, value);
+    this.store.setYoutubeEdge(edge, value);
   }
 
   useYoutubeTime(edge: keyof TrimRange): void {
-    if (this.youtubePlayer) this.setYoutubeEdge(edge, this.youtubePlayer.currentTime());
-  }
-
-  // Seconds rounded to centiseconds; YouTube reports 0 for durations it doesn't know yet.
-  private setYoutubeEdge(edge: keyof TrimRange, value: number): void {
-    const max = this.youtubeDuration() || Infinity;
-    const range = { ...this.youtubeRange(), [edge]: Math.round(Math.min(max, Math.max(0, value)) * 100) / 100 };
-    this.youtubeRange.set(range);
-    this.engine.setTrim(range);
+    const player = this.store.youtubePlayer;
+    if (player) this.store.setYoutubeEdge(edge, player.currentTime());
   }
 
   onYoutubeLeadChange(value: number | null): void {
@@ -400,11 +369,8 @@ export class CountInPractice {
   }
 
   private handleFile(file: File): void {
-    if (this.source() !== 'file') this.setSource('file');
-    this.engine.stop();
-    this.audioBuffer.set(null);
     this.errorMessage.set(null);
-    this.audioFile.set(file);
+    this.store.loadFile(file);
   }
 
   onWaveformLoaded(loaded: WaveformLoaded): void {

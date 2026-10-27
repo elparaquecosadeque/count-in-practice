@@ -1,17 +1,28 @@
 import { Injectable } from '@angular/core';
 import {
+  AudioSource,
   BARS_MAX,
   BARS_MIN,
   BPM_MAX,
   BPM_MIN,
   BeatAccent,
   CountInSettings,
-  defaultAccents, SILENCE_DB_MAX, SILENCE_DB_MIN, TIME_SIGNATURES, YOUTUBE_LEAD_MS_MAX, YOUTUBE_LEAD_MS_MIN } from '../models';
+  SILENCE_DB_MAX,
+  SILENCE_DB_MIN,
+  TIME_SIGNATURES,
+  TrimRange,
+  YOUTUBE_LEAD_MS_MAX,
+  YOUTUBE_LEAD_MS_MIN,
+  defaultAccents,
+} from '../models';
 
 // Engine settings plus UI-only preferences that are worth remembering.
 export interface StoredSettings extends CountInSettings {
   silenceThresholdDb: number;
   youtubeLeadMs: number;
+  source: AudioSource;
+  youtubeUrl: string;
+  youtubeRange: TrimRange;
 }
 
 const STORAGE_KEY = 'count-in-practice-settings';
@@ -24,6 +35,9 @@ const DEFAULTS: StoredSettings = {
   countOutBars: 1,
   silenceThresholdDb: -40,
   youtubeLeadMs: 100,
+  source: 'file',
+  youtubeUrl: '',
+  youtubeRange: { start: 0, end: 0 },
 };
 
 // Stored data is untrusted (older versions, hand edits): any field that isn't
@@ -39,6 +53,13 @@ function accentsFor(value: unknown, beatsPerMeasure: number): BeatAccent[] {
   return Array.isArray(value) && value.length === beatsPerMeasure && value.every((a) => ACCENTS.includes(a))
     ? (value as BeatAccent[])
     : defaultAccents(beatsPerMeasure);
+}
+
+function rangeFrom(value: unknown): TrimRange {
+  const { start, end } = (value ?? {}) as Partial<TrimRange>;
+  return typeof start === 'number' && typeof end === 'number' && start >= 0 && end > start
+    ? { start, end }
+    : DEFAULTS.youtubeRange;
 }
 
 function load(): StoredSettings {
@@ -57,6 +78,9 @@ function load(): StoredSettings {
       countOutBars: intInRange(parsed.countOutBars, BARS_MIN, BARS_MAX, DEFAULTS.countOutBars),
       silenceThresholdDb: intInRange(parsed.silenceThresholdDb, SILENCE_DB_MIN, SILENCE_DB_MAX, DEFAULTS.silenceThresholdDb),
       youtubeLeadMs: intInRange(parsed.youtubeLeadMs, YOUTUBE_LEAD_MS_MIN, YOUTUBE_LEAD_MS_MAX, DEFAULTS.youtubeLeadMs),
+      source: parsed.source === 'youtube' ? 'youtube' : 'file',
+      youtubeUrl: typeof parsed.youtubeUrl === 'string' ? parsed.youtubeUrl : '',
+      youtubeRange: rangeFrom(parsed.youtubeRange),
     };
   } catch {
     return DEFAULTS;

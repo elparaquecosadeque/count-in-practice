@@ -1,8 +1,10 @@
 <div class="shell">
-  <header class="header">
-    <p class="eyebrow">{{ text().subtitle }}</p>
-    <h1>{{ text().title }}</h1>
-  </header>
+  @if (showHeader()) {
+    <header class="header">
+      <p class="eyebrow">{{ text().subtitle }}</p>
+      <h1>{{ text().title }}</h1>
+    </header>
+  }
 
   <mat-card appearance="outlined">
     <mat-card-content>
@@ -142,12 +144,16 @@
           <p class="error-text" role="alert">{{ message }}</p>
         }
         @if (youtubeVideoId(); as videoId) {
-          <the-chords-youtube-player
-            #youtubePlayer
-            [videoId]="videoId"
-            (ready)="onYoutubeReady(youtubePlayer, $event)"
-            (loadError)="onYoutubeError()"
-          />
+          @if (store.hostPresent()) {
+            <div #youtubeSlot class="youtube-slot"></div>
+          } @else {
+            <the-chords-youtube-player
+              #youtubePlayer
+              [videoId]="videoId"
+              (ready)="onYoutubeReady(youtubePlayer, $event)"
+              (loadError)="onYoutubeError()"
+            />
+          }
           @if (youtubeDuration() !== null) {
             <div class="youtube-range">
               @for (edge of youtubeEdges; track edge) {
@@ -195,7 +201,7 @@
       } @else if (audioFile()) {
         <the-chords-waveform-trimmer
           #waveformTrimmer
-          [file]="audioFile()"
+          [session]="store.waveformSession()"
           [locked]="engine.transport() !== 'idle'"
           [cursorTime]="engine.cursorTime()"
           [theme]="theme()"

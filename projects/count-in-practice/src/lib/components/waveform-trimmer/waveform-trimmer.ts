@@ -24,9 +24,20 @@ export interface WaveformLoaded {
   duration: number;
 }
 
-interface AudioState {
+export interface AudioState {
   blob: Blob;
   buffer: AudioBuffer;
+}
+
+// Everything about one loaded file that must survive the trimmer being
+// unmounted (leaving the page): the decoded audio, the crop undo snapshot and
+// the trim/silence ranges. Owned by the caller; the trimmer reads and writes it.
+export interface WaveformSession {
+  file: File;
+  current: AudioState | null;
+  previous: AudioState | null;
+  range: TrimRange | null;
+  rangeBeforeSilence: TrimRange | null;
 }
 
 // Thin wrapper around wavesurfer.js (core) + its official RegionsPlugin — not the
@@ -44,7 +55,7 @@ interface AudioState {
   encapsulation: ViewEncapsulation.None,
 })
 export class WaveformTrimmer implements AfterViewInit, OnDestroy {
-  readonly file = input<File | null>(null);
+  readonly session = input<WaveformSession | null>(null);
   // While the engine is playing, trim/crop edits would change the cycle length
   // mid-loop — the parent locks the regions instead.
   readonly locked = input(false);
@@ -68,10 +79,6 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   private wavesurfer: WaveSurfer | null = null;
   private regions: ReturnType<typeof RegionsPlugin.create> | null = null;
   private activeRegion: Region | null = null;
-  private current: AudioState | null = null;
-  private previous: AudioState | null = null;
-  // Trim range from just before the last trimSilence() — one level, like crop's undo.
-  private rangeBeforeSilence: TrimRange | null = null;
   private viewReady = false;
   private removeCtrlWheelGuard: (() => void) | null = null;
 
@@ -79,8 +86,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     // Signal inputs don't fire ngOnChanges — react via effect(), guarded until
     // the view (and its viewChild container) actually exists.
     effect(() => {
-      this.file();
-      if (this.viewReady) this.loadCurrentFile();
+      this.session();
+      if (this.viewReady) this.loadSession();
     });
     effect(() => {
       const editable = !this.locked();
@@ -103,7 +110,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.viewReady = true;
-    this.loadCurrentFile();
+    this.loadSession();
   }
 
   ngOnDestroy(): void {
@@ -114,13 +121,14 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   // Destructive: keeps only the trim selection and reloads the waveform with
   // it. Keeps the pre-crop state so undo() can restore it — one level only.
   async cropToSelection(): Promise<void> {
-    if (!this.activeRegion || !this.current) return;
-    const cropped = cropAudioBuffer(this.current.buffer, this.activeRegion.start, this.activeRegion.end);
+    const session = this.session();
+    if (!this.activeRegion || !session?.current) return;
+    const cropped = cropAudioBuffer(session.current.buffer, this.activeRegion.start, this.activeRegion.end);
     const blob = new Blob([encodeWav(cropped)], { type: 'audio/wav' });
 
-    this.previous = this.current;
+    session.previous = session.current;
     this.canUndo.emit(true);
-    await this.mountWavesurfer({ blob, buffer: cropped });
+    await this.mountWavesurfer(session, { blob, buffer: cropped });
   }
 
   // Non-destructive: moves the trim region's edge(s) in to the first/last
@@ -128,12 +136,13 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   // (and changes nothing) if the whole selection is below the threshold.
   trimSilence(thresholdDb: number, mode: SilenceTrimMode): boolean {
     const region = this.activeRegion;
-    if (!region || !this.current) return false;
-    const { buffer } = this.current;
+    const session = this.session();
+    if (!region || !session?.current) return false;
+    const { buffer } = session.current;
     const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
     const bounds = findSoundBounds(channels, buffer.sampleRate, region.start, region.end, thresholdDb);
     if (!bounds) return false;
-    this.rangeBeforeSilence = { start: region.start, end: region.end };
+    session.rangeBeforeSilence = { start: region.start, end: region.end };
     this.canUndoSilence.emit(true);
     region.setOptions({
       start: mode === 'end' ? region.start : bounds.start,
@@ -144,30 +153,38 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
   }
 
   undoSilence(): void {
-    const range = this.rangeBeforeSilence;
-    if (!range || !this.activeRegion) return;
+    const session = this.session();
+    const range = session?.rangeBeforeSilence;
+    if (!session || !range || !this.activeRegion) return;
     this.activeRegion.setOptions(range);
     this.emitTrim();
-    this.rangeBeforeSilence = null;
+    session.rangeBeforeSilence = null;
     this.canUndoSilence.emit(false);
   }
 
   async undo(): Promise<void> {
-    if (!this.previous) return;
-    const state = this.previous;
-    this.previous = null;
+    const session = this.session();
+    if (!session?.previous) return;
+    const state = session.previous;
+    session.previous = null;
     this.canUndo.emit(false);
-    await this.mountWavesurfer(state);
+    await this.mountWavesurfer(session, state);
   }
 
-  private async loadCurrentFile(): Promise<void> {
-    const file = this.file();
-    if (!file) {
+  private async loadSession(): Promise<void> {
+    const session = this.session();
+    if (!session) {
       this.teardown();
-      this.previous = null;
       this.canUndo.emit(false);
       return;
     }
+    // Coming back to a file already decoded: restore it as it was left.
+    if (session.current) {
+      this.canUndo.emit(session.previous !== null);
+      await this.mountWavesurfer(session, session.current, true);
+      return;
+    }
+    const { file } = session;
 
     // Decode ourselves rather than letting wavesurfer fetch+decode the blob
     // internally: we need the AudioBuffer for the playback engine anyway, and
@@ -186,24 +203,19 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       this.loadError.emit();
       return;
     }
-    if (this.file() !== file) return; // superseded by a newer file while decoding
+    if (this.session() !== session) return; // superseded by a newer file while decoding
 
-    this.previous = null;
     this.canUndo.emit(false);
-    await this.mountWavesurfer({ blob: file, buffer });
+    await this.mountWavesurfer(session, { blob: file, buffer });
   }
 
-  // Tears down the wavesurfer instance itself. Deliberately does NOT touch
-  // `previous` (the undo snapshot) — this runs on every reload, including the
-  // one cropToSelection()/undo() trigger to show their own result, so clearing it
-  // here would erase the snapshot before it could ever be used. Callers that
-  // actually want to reset undo history (a fresh file) do so explicitly.
+  // Tears down the wavesurfer instance itself; the session (and its undo
+  // snapshot) is the caller's and outlives it.
   private teardown(): void {
     this.wavesurfer?.destroy();
     this.wavesurfer = null;
     this.regions = null;
     this.activeRegion = null;
-    this.current = null;
     this.removeCtrlWheelGuard?.();
     this.removeCtrlWheelGuard = null;
   }
@@ -217,12 +229,17 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
     return { waveColor, progressColor, cursorColor, regionColor };
   }
 
-  private async mountWavesurfer(state: AudioState): Promise<void> {
+  // `restore`: remounting the session's own current audio, so its range and
+  // silence undo still apply. Otherwise a new or changed buffer gets a fresh
+  // full-length region; the old ranges mean nothing.
+  private async mountWavesurfer(session: WaveformSession, state: AudioState, restore = false): Promise<void> {
     this.teardown();
-    this.current = state;
-    // A new or changed buffer gets a fresh region; the old range means nothing.
-    this.rangeBeforeSilence = null;
-    this.canUndoSilence.emit(false);
+    session.current = state;
+    if (!restore) {
+      session.range = null;
+      session.rangeBeforeSilence = null;
+    }
+    this.canUndoSilence.emit(session.rangeBeforeSilence !== null);
     const { blob, buffer } = state;
 
     const host = this.container().nativeElement;
@@ -276,8 +293,8 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
 
     wavesurfer.on('ready', (duration) => {
       const region = regions.addRegion({
-        start: 0,
-        end: duration,
+        start: session.range?.start ?? 0,
+        end: session.range?.end ?? duration,
         drag: !this.locked(),
         resize: !this.locked(),
         color: regionColor,
@@ -286,7 +303,7 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
       region.on('update-end', () => this.emitTrim());
 
       this.loaded.emit({ buffer, duration });
-      this.trimChange.emit({ start: region.start, end: region.end });
+      this.emitTrim();
     });
 
     wavesurfer.loadBlob(blob, channelData, buffer.duration);
@@ -294,7 +311,9 @@ export class WaveformTrimmer implements AfterViewInit, OnDestroy {
 
   private emitTrim(): void {
     const region = this.activeRegion;
-    if (!region) return;
-    this.trimChange.emit({ start: region.start, end: region.end });
+    const session = this.session();
+    if (!region || !session) return;
+    session.range = { start: region.start, end: region.end };
+    this.trimChange.emit(session.range);
   }
 }

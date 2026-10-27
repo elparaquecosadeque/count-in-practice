@@ -166,6 +166,13 @@ mat-card {
   }
 }
 
+// The app shell's CountInYoutubeHost places its player over this.
+.youtube-slot {
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: #000;
+}
+
 .youtube-range {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
